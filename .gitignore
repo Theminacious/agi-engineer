@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Virtual environments
+venv/
+.env/
+
+# OS
+.DS_Store
+
+# External test repos
+repos/
+
+# Temp / Ruff artifacts
+tmp*.py
