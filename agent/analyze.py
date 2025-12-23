@@ -1,13 +1,14 @@
 import subprocess
 import os
 import json
+import sys
 
 def run_ruff(repo_root):
     """
     Run Ruff from repo root and return ABSOLUTE file paths.
     """
     result = subprocess.run(
-        ["ruff", "check", ".", "--output-format", "json", "--exit-zero"],
+        [sys.executable, "-m", "ruff", "check", ".", "--output-format", "json", "--exit-zero"],
         cwd=repo_root,
         capture_output=True,
         text=True,

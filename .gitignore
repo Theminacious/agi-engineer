@@ -8,6 +8,13 @@ __pycache__/
 # Virtual environments
 venv/
 .env/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store
@@ -15,5 +22,10 @@ venv/
 # External test repos
 repos/
 
-# Temp / Ruff artifacts
+# Ruff cache
+.ruff_cache/
+
+# Temp files
 tmp*.py
+test_*.py
+debug.py
