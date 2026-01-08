@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff groq
+          pip install ruff groq gitpython
       
       - name: Run AGI Engineer Analysis
         id: analysis
