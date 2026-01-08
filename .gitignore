@@ -4,23 +4,36 @@ __pycache__/
 *.pyo
 *.pyd
 *.egg-info/
+*.egg
+dist/
+build/
 
 # Virtual environments
 venv/
 .env/
 env/
+ENV/
+
+# Environment variables & API keys
+.env
+.env.local
+*.key
 
 # IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+*.code-workspace
 
 # OS
 .DS_Store
+Thumbs.db
 
-# External test repos
-repos/
+# External test repos (keep test-repo for testing)
+repos/flask/
+repos/requests/
+repos/requests-html/
 
 # Ruff cache
 .ruff_cache/
@@ -29,3 +42,12 @@ repos/
 tmp*.py
 test_*.py
 debug.py
+demo_*.py
+
+# Safety reports
+safety_report.json
+*.log
+
+# Git temp files
+*.orig
+*.rej
