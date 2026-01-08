@@ -6,6 +6,13 @@ import os
 import logging
 from typing import Optional
 
+from usage_tracker import (
+    UsageTracker,
+    DEFAULT_LIMIT,
+    DEFAULT_WINDOW,
+    DEFAULT_STORAGE,
+)
+
 logger = logging.getLogger(__name__)
 
 class AIAnalyzer:
@@ -14,7 +21,13 @@ class AIAnalyzer:
     Supports multiple providers with automatic fallback
     """
     
-    def __init__(self, api_key: Optional[str] = None, provider: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        provider: Optional[str] = None,
+        repo_id: str = "default",
+        rate_limit: Optional[dict] = None,
+    ):
         """
         Initialize with API key and provider
         
@@ -22,10 +35,23 @@ class AIAnalyzer:
             api_key: Optional API key (will check env vars if not provided)
             provider: Optional provider name ('groq', 'together', 'openrouter', 'anthropic')
                      If not specified, will auto-detect from available keys
+            repo_id: Identifier for usage tracking (e.g., repo name)
+            rate_limit: Optional dict with limit/window_seconds/storage_path
         """
         # Detect provider and key
         self.provider, self.api_key = self._detect_provider(api_key, provider)
         self.enabled = bool(self.api_key)
+        self.repo_id = repo_id or "default"
+
+        rl_config = rate_limit or {}
+        limit = rl_config.get("limit", DEFAULT_LIMIT)
+        window_seconds = rl_config.get("window_seconds", DEFAULT_WINDOW)
+        storage_path = rl_config.get("storage_path", DEFAULT_STORAGE)
+        self.usage_tracker = UsageTracker(
+            limit=limit,
+            window_seconds=window_seconds,
+            storage_path=storage_path,
+        )
         
         if not self.enabled:
             print("⚠️  AI features disabled: Set one of these environment variables:")
@@ -72,6 +98,14 @@ class AIAnalyzer:
         Handles different providers automatically
         """
         if not self.enabled:
+            return None
+
+        # Rate limiting
+        key = f"{self.provider or 'unknown'}:{self.repo_id}"
+        allowed, remaining = self.usage_tracker.check_and_increment(key)
+        if not allowed:
+            logger.warning("Rate limit exceeded for %s (repo %s). Retry in %ss", self.provider, self.repo_id, remaining)
+            print(f"⚠️  Rate limit exceeded for {self.provider}. Try again in {remaining}s")
             return None
         
         try:

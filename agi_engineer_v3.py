@@ -8,6 +8,7 @@ import sys
 import argparse
 import shutil
 import tempfile
+import hashlib
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AGENT_DIR = os.path.join(BASE_DIR, "agent")
@@ -26,6 +27,7 @@ from fix_orchestrator import FixOrchestrator
 from explainer import ExplainerEngine
 from safety_checker import SafetyChecker
 from ai_analyzer import AIAnalyzer
+from config_loader import Config
 from file_reader import read_file
 
 
@@ -39,6 +41,14 @@ def print_section(title: str):
     """Print section header"""
     print(f"\n{title}")
     print("─" * 60)
+
+
+def build_repo_id(repo_path: str) -> str:
+    """Stable repo identifier for usage tracking."""
+    abs_path = os.path.abspath(repo_path)
+    name = os.path.basename(abs_path) or "repo"
+    suffix = hashlib.sha1(abs_path.encode()).hexdigest()[:8]
+    return f"{name}-{suffix}"
 
 
 def display_classification(classifier: RuleClassifier, issues: list):
@@ -150,6 +160,9 @@ Examples:
                 return 1
             repo_path = os.path.abspath(args.repo)
 
+        # Load configuration
+        config = Config(repo_path=repo_path)
+
         # Show header
         print_header("AGI Engineer v3 - Smart Code Fixer")
         
@@ -176,7 +189,9 @@ Examples:
         # Initialize AI analyzer if enabled
         ai_analyzer = None
         if args.ai:
-            ai_analyzer = AIAnalyzer()
+            repo_id = build_repo_id(repo_path)
+            rate_limit_cfg = config.get('ai.rate_limit', {}) or {}
+            ai_analyzer = AIAnalyzer(repo_id=repo_id, rate_limit=rate_limit_cfg)
             if not ai_analyzer.enabled:
                 ai_analyzer = None
             else:
@@ -207,8 +222,9 @@ Examples:
                 print_section("🤖 AI ANALYSIS")
                 # Get unique files with issues
                 files_with_issues = list(set(issue['filename'] for issue in issues))
-                
-                for file_path in files_with_issues[:3]:  # Analyze up to 3 files
+                max_ai_files = config.get('ai.max_files_to_analyze', 3)
+
+                for file_path in files_with_issues[:max_ai_files]:
                     abs_path = os.path.join(repo_path, file_path)
                     if os.path.exists(abs_path):
                         code = read_file(abs_path)

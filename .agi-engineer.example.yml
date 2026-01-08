@@ -17,6 +17,10 @@ ai:
   provider: groq  # Options: groq, together, openrouter, anthropic
   max_files_to_analyze: 5
   custom_prompts: {}
+  rate_limit:
+    limit: 10            # calls per window
+    window_seconds: 3600 # window size in seconds
+    storage_path: ~/.agi-engineer/usage.json
 
 skip_patterns:
   - __pycache__

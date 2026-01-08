@@ -19,7 +19,12 @@ DEFAULT_CONFIG = {
         'enabled': True,
         'provider': 'groq',
         'max_files_to_analyze': 5,
-        'custom_prompts': {}
+        'custom_prompts': {},
+        'rate_limit': {
+            'limit': 10,            # calls per window
+            'window_seconds': 3600, # window size in seconds
+            'storage_path': os.path.expanduser('~/.agi-engineer/usage.json')
+        }
     },
     'skip_patterns': [
         '__pycache__', '.git', '.venv', 'venv', 'node_modules',
@@ -148,7 +153,11 @@ ai:
   enabled: true
   provider: groq  # groq, together, openrouter, anthropic
   max_files_to_analyze: 5
-  custom_prompts: {{}}
+    custom_prompts: {{}}
+    rate_limit:
+        limit: 10            # calls per window
+        window_seconds: 3600 # window size in seconds
+        storage_path: ~/.agi-engineer/usage.json
 
 skip_patterns:
   - __pycache__
