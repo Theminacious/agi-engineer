@@ -3,7 +3,10 @@ AI Analyzer - LLM-powered intelligent code analysis
 Supports multiple LLM providers: Groq (FREE), Together AI, OpenRouter, Anthropic, etc.
 """
 import os
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 class AIAnalyzer:
     """
@@ -81,10 +84,20 @@ class AIAnalyzer:
             elif self.provider == 'anthropic':
                 return self._call_anthropic(prompt, max_tokens)
             else:
+                logger.warning(f"Unknown provider: {self.provider}")
                 print(f"⚠️  Unknown provider: {self.provider}")
                 return None
+        except ImportError as e:
+            logger.error(f"Missing dependency for {self.provider}: {e}")
+            print(f"⚠️  Please install: pip install {self.provider}")
+            return None
+        except ConnectionError as e:
+            logger.error(f"Network error calling {self.provider}: {e}")
+            print(f"⚠️  Network error. Check your internet connection.")
+            return None
         except Exception as e:
-            print(f"⚠️  LLM call failed: {e}")
+            logger.error(f"LLM call failed for {self.provider}: {e}", exc_info=True)
+            print(f"⚠️  AI analysis failed: {str(e)[:100]}")
             return None
     
     def _call_groq(self, prompt: str, max_tokens: int) -> Optional[str]:
@@ -94,16 +107,25 @@ class AIAnalyzer:
             client = Groq(api_key=self.api_key)
             
             response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",  # Best free model
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
                 temperature=0.7
             )
             
+            if not response or not response.choices:
+                raise ValueError("Empty response from Groq API")
+            
             return response.choices[0].message.content
         except ImportError:
-            print("⚠️  Install groq: pip install groq")
-            return None
+            raise ImportError("groq package not installed")
+        except Exception as e:
+            if "rate_limit" in str(e).lower():
+                raise ConnectionError(f"Groq rate limit exceeded: {e}")
+            elif "api_key" in str(e).lower():
+                raise ValueError(f"Invalid Groq API key: {e}")
+            else:
+                raise ConnectionError(f"Groq API error: {e}")
     
     def _call_together(self, prompt: str, max_tokens: int) -> Optional[str]:
         """Call Together AI API"""

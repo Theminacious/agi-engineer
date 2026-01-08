@@ -1,0 +1,37 @@
+# AGI Engineer Configuration
+# Place this file in your repository root to customize behavior
+
+rules:
+  enabled:
+    - F401  # Unused imports
+    - F541  # Useless f-strings  
+    - W291  # Trailing whitespace
+    - W292  # No newline at EOF
+    - E711  # Comparison to None
+    - E712  # Comparison to True/False
+  disabled: []
+  safe_only: true  # Only auto-fix safe rules
+
+ai:
+  enabled: true
+  provider: groq  # Options: groq, together, openrouter, anthropic
+  max_files_to_analyze: 5
+  custom_prompts: {}
+
+skip_patterns:
+  - __pycache__
+  - .git
+  - .venv
+  - venv
+  - node_modules
+  - "*.min.js"
+  - "*.min.css"
+  - dist/
+  - build/
+  - .eggs/
+  - "*.egg-info/"
+
+max_issues_per_run: 1000
+create_pr: false
+branch_prefix: "agi-engineer/fixes"
+commit_message_template: "🤖 AGI Engineer: Fixed {count} code issues"

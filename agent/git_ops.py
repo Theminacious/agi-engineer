@@ -1,6 +1,10 @@
 import subprocess
+import logging
 from git import Repo
+from git.exc import GitCommandError, InvalidGitRepositoryError
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 def clone_repo(repo_url, target_dir):
@@ -9,12 +13,28 @@ def clone_repo(repo_url, target_dir):
     Returns (repo_path, success, error_msg)
     """
     try:
+        if not repo_url:
+            return None, False, "Repository URL cannot be empty"
+        
+        logger.info(f"Cloning {repo_url} to {target_dir}")
         print(f"🔄 Cloning {repo_url}...")
-        repo = Repo.clone_from(repo_url, target_dir)
+        
+        repo = Repo.clone_from(repo_url, target_dir, depth=1)  # Shallow clone for speed
         print(f"✅ Cloned to {target_dir}")
+        logger.info(f"Successfully cloned to {target_dir}")
         return target_dir, True, None
+    except GitCommandError as e:
+        error_msg = f"Git command failed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return None, False, error_msg
+    except PermissionError as e:
+        error_msg = f"Permission denied: {str(e)}"
+        logger.error(error_msg)
+        return None, False, error_msg
     except Exception as e:
-        return None, False, str(e)
+        error_msg = f"Failed to clone repository: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return None, False, error_msg
 
 
 def create_branch(repo_path, branch_name):
