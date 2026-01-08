@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import health, oauth, webhooks, installations
+from app.routers import health, oauth, webhooks, installations, analysis
 
 # Create FastAPI app
 app = FastAPI(
@@ -26,6 +26,7 @@ app.include_router(health.router)
 app.include_router(oauth.router)
 app.include_router(webhooks.router)
 app.include_router(installations.router)
+app.include_router(analysis.router)
 
 
 @app.get("/")
