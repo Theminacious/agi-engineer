@@ -87,15 +87,17 @@ def display_classification(classifier: RuleClassifier, issues: list):
             print(f"   • {code}: {rule_info['name']} ({count})")
 
 
-def display_explanations(explainer: ExplainerEngine, grouped_issues: dict):
+def display_explanations(explainer: ExplainerEngine, grouped_issues: dict, only_safe: bool = False):
     """Display detailed explanations for fixes"""
     print_section("📝 EXPLANATIONS")
     
+    issues_to_explain = grouped_issues['safe'] if only_safe else grouped_issues['safe']
+    
     seen = set()
-    for issue in grouped_issues['safe']:
+    for issue in issues_to_explain:
         code = issue['code']
         if code not in seen:
-            print(explainer.format_explanation(code, len([i for i in grouped_issues['safe'] if i['code'] == code])))
+            print(explainer.format_explanation(code, len([i for i in issues_to_explain if i['code'] == code])))
             seen.add(code)
 
 
