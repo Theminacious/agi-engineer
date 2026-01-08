@@ -1,208 +1,453 @@
-# 🤖 AGI Engineer - Automated Code Fixer
+# �� AGI Engineer v1 - Complete Python Code Fixer
 
-An autonomous AI agent that clones repositories, finds code issues, fixes them automatically, and creates pull requests - just like a real engineer!
+> **What is this?** Imagine a robot that reads your Python code, finds all the problems (unused imports, bad spacing, etc.), explains WHY they're problems, and then **automatically fixes them**. That's AGI Engineer!
 
-## Features
-
-- 🔍 **Automatic Issue Detection** - Scans repositories using Ruff static analyzer
-- 🔧 **Smart Auto-Fixing** - Fixes multiple rule violations automatically
-- 🌿 **Git Integration** - Clone, branch, commit, and push changes
-- 🚀 **PR Creation** - Automatically creates pull requests with detailed descriptions
-- ⚙️ **Configurable** - Customize rules, skip patterns, and behavior
-
-## Supported Rules
-
-Auto-fixes **ALL** rules that Ruff can fix automatically, including:
-- **F401** - Remove unused imports
-- **F541** - Remove useless f-string prefixes
-- **W291** - Remove trailing whitespace  
-- **W292** - Add newline at end of file
-- **E711** - Comparison to None
-- **UP** - Pyupgrade rules (Python syntax modernization)
-- **I** - isort rules (import sorting)
-- And many more!
-
-See [Ruff Rules](https://docs.astral.sh/ruff/rules/) for the complete list.
-
-## Installation
-
-```bash
-# Clone this repo
-git clone https://github.com/yourusername/agi-engineer.git
-cd agi-engineer
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# For PR creation, install GitHub CLI (optional)
-# macOS: brew install gh
-# Linux: https://github.com/cli/cli#installation
-# Then authenticate: gh auth login
-```
-
-## Usage
-
-### Automated GitHub Actions Workflow
-
-The easiest way to use AGI Engineer is via GitHub Actions - it runs automatically on every pull request!
-
-**Setup (one-time):**
-
-1. Add `GROQ_API_KEY` secret to your repo:
-   - Go to Settings → Secrets and variables → Actions
-   - Click "New repository secret"
-   - Name: `GROQ_API_KEY`
-   - Value: Your Groq API key (get free key at https://console.groq.com)
-
-2. The workflow will then automatically:
-   - Run on every PR targeting `main` or `master`
-   - Analyze code with Ruff + AI
-   - Post detailed findings as PR comments
-   - Classify issues by safety (auto-fixable vs needs review)
-   - Suggest improvements with AI reasoning
-
-**Example PR Comment:**
-```
-🤖 AGI Engineer Analysis Results
-Total Issues Found: 21
-✅ Safe to Auto-Fix: 10 issues
-⚠️ Needs Review: 1 issues
-
-📋 ISSUE CLASSIFICATION
-✅ SAFE TO AUTO-FIX (10 issues)
-   • F401: Unused import (8)
-   • F541: Useless f-string (2)
-
-⚠️ NEEDS REVIEW (1 issues)
-   • F841: Unused variable (1)
-
-🤖 AI ANALYSIS
-[Claude-powered code review suggestions...]
-```
-
-### Manual Usage - Fix Local Repository
-
-```bash
-python3 agi_engineer_v3.py /path/to/your/repo --smart --ai
-```
-
-### Analyze Only (No Fixes)
-
-```bash
-python3 agi_engineer_v3.py /path/to/repo --smart --ai --analyze-only
-```
-
-## Command Line Options
-
-```
-positional arguments:
-  repo                  Repository path or Git URL to clone
-
-options:
-  --branch BRANCH       Branch name for fixes (auto-generated if not provided)
-  --pr                  Create a pull request after fixing
-  --push                Push changes to remote
-  --rules RULES         Comma-separated Ruff rules to fix (e.g., F401,F541)
-  --no-cleanup          Keep cloned repository after completion
-```
-
-## How It Works
-
-1. **Clone/Open Repository** - Clones from URL or opens local path
-2. **Create Branch** - Creates a new fix branch (if pushing/PR)
-3. **Scan for Issues** - Runs Ruff to find code quality issues
-4. **Generate Fixes** - Creates patches for supported rules
-5. **Apply Changes** - Safely applies patches using git
-6. **Commit & Push** - Commits fixes and pushes to remote
-7. **Create PR** - Opens pull request with detailed description
-
-## Example Output
-
-```
-🤖 AGI Engineer v2 - Automated Code Fixer
-============================================================
-📁 Repository: /Users/you/repos/myproject
-🌿 Branch: main
-🔗 Remote: https://github.com/user/myproject
-
-🔍 Scanning repository...
-📊 Found 42 issues
-
-🔧 Applying automatic fixes...
-✅ Fixed 42 issues
-📊 Remaining: 0 issues
-
-✅ Committed: 🤖 Auto-fix: Resolved 42 code issues
-✅ Pushed branch: fix/auto-fixes-20231224-120000
-🎉 Pull Request: https://github.com/user/myproject/pull/123
-
-✨ Done!
-```
-
-## Configuration
-
-Edit `agent/config.py` to customize:
-
-- Enabled rules to fix
-- Skip patterns (files/directories to ignore)
-- Commit message templates
-- Branch naming
-
-## Requirements
-
-- Python 3.8+
-- Git installed
-- GitHub CLI (for PR creation)
-- Ruff (installed via pip)
-
-## Architecture
-
-```
-agi-engineer/
-├── agi_engineer.py      # Main entry point
-├── agent/
-│   ├── analyze.py       # Ruff integration
-│   ├── fixer.py         # Fix generators for each rule
-│   ├── apply_patch.py   # Safe patch application
-│   ├── git_ops.py       # Git operations
-│   ├── file_reader.py   # File utilities
-│   └── config.py        # Configuration
-└── requirements.txt     # Dependencies
-```
-
-## Contributing
-
-Want to add support for more Ruff rules? 
-
-1. Add fixer function in `agent/fixer.py`
-2. Update `generate_fix()` routing
-3. Add rule to `ENABLED_RULES` in `agent/config.py`
-4. Test and submit PR!
-
-## Roadmap
-
-- [ ] Support more Ruff rules (E, W, C, N categories)
-- [ ] AI-powered fixes using LLMs for complex issues
-- [ ] Multi-language support (JavaScript, TypeScript, etc.)
-- [ ] Integration with CI/CD pipelines
-- [ ] Web interface for monitoring
-- [ ] Slack/Discord notifications
-
-## License
-
-MIT License - See LICENSE file
-
-## Credits
-
-Built with ❤️ using:
-- [Ruff](https://github.com/astral-sh/ruff) - Lightning-fast Python linter
-- [GitPython](https://github.com/gitpython-developers/GitPython) - Git integration
-- [GitHub CLI](https://cli.github.com/) - PR creation
+Think of it like **Grammarly for code** 📝 — but smarter, faster, and with AI.
 
 ---
 
-**Made by AGI Engineer Bot 🤖**
+## 🎯 What Problem Does It Solve?
+
+### Before AGI Engineer ❌
+```
+Manual code review = Time-consuming
+❌ Find bad variable names manually
+❌ Hunt for unused imports one by one
+❌ Fix formatting issues by hand
+❌ Worry about breaking things
+❌ Days of tedious work
+```
+
+### After AGI Engineer ✅
+```
+Automated with verification = Fast & Safe
+✅ AI finds issues automatically
+✅ Shows why each issue matters
+✅ Fixes them instantly (with safety checks)
+✅ Tests for regressions
+✅ Done in seconds
+```
+
+---
+
+## 🚀 Quick Start (5 minutes)
+
+### Step 1: Install
+```bash
+# Clone the project
+git clone https://github.com/Theminacious/agi-engineer.git
+cd agi-engineer
+
+# Create virtual environment (isolated Python space)
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Step 2: Get Free AI (Groq)
+Groq gives you **FREE** AI inference - no credit card needed!
+
+```bash
+# Option A: Set environment variable
+export GROQ_API_KEY=gsk_YOUR_KEY_HERE
+
+# Option B: Create .env file (easier)
+echo "GROQ_API_KEY=gsk_YOUR_KEY_HERE" > .env
+source .env
+```
+
+Get your free key: https://console.groq.com/
+
+### Step 3: Run It!
+```bash
+# Just analyze (no changes)
+python3 agi_engineer_v3.py /path/to/your/python/project --ai --smart --analyze-only
+
+# Analyze and fix
+python3 agi_engineer_v3.py /path/to/your/python/project --smart
+
+# Or fix a GitHub repo directly
+python3 agi_engineer_v3.py https://github.com/user/repo --smart --pr
+```
+
+---
+
+## 📊 How It Works (Visual Guide)
+
+### The Process Flow
+
+```
+Your Python Code
+      ↓
+   [Ruff Scanner] ← Finds 36 issues
+      ↓
+[AI Analyzer] ← Understands what's wrong (uses Groq)
+      ↓
+[Rule Classifier] ← Sorts into: Safe, Review, Suggestions
+      ↓
+[Safety Checker] ← Tests if fixes break anything
+      ↓
+[Auto-Fixer] ← Applies fixes to code
+      ↓
+[Git Integration] ← Creates PR for review
+      ↓
+Clean, Fixed Code ✨
+```
+
+### Example: What It Finds
+
+**Your Code:**
+```python
+import os          # ← Unused (imported but never used)
+import json
+
+msg = f"hello"     # ← f-string without variables (wastes CPU)
+
+x = 5              # ← Unused variable (confusing)
+print(x + 1)
+
+if x == None:      # ← Wrong comparison (should use 'is None')
+    pass
+```
+
+**What AGI Engineer Does:**
+
+| Issue | Type | Why Bad | Fix |
+|-------|------|--------|-----|
+| Unused `os` import | Safe ✅ | Clutter, slower load | Remove |
+| Useless f-string | Safe ✅ | Wasted memory | Change to normal string |
+| Unused variable `x` | Review ⚠️ | Confusing code | Maybe remove? (need human check) |
+| `== None` comparison | Safe ✅ | Python best practice | Use `is None` |
+
+---
+
+## 🎁 What's Included in V1 (7 Major Features)
+
+### ✅ V1.1: Error Handling (Won't Crash on Problems)
+
+**What it means:** When things go wrong (no internet, wrong path, API fails), AGI Engineer **doesn't crash** — it tells you what happened clearly.
+
+**Problems it solves:**
+- ❌ Code crashes on network error → ✅ Shows helpful message
+- ❌ Confusing error messages → ✅ Clear explanation of issue
+- ❌ Lost work on failure → ✅ Saves state before risky operations
+
+**Example:**
+```bash
+$ python3 agi_engineer_v3.py https://github.com/invalid/url --pr
+
+❌ Failed to clone: Invalid repository URL
+   Try: https://github.com/username/repo
+   Or:  /path/to/local/repo
+```
+
+---
+
+### ✅ V1.2: Configuration (Customize Everything)
+
+**What it means:** You can create a file (`.agi-engineer.yml`) that tells AGI Engineer exactly what rules to use, which files to skip, and how to behave.
+
+**Problems it solves:**
+- ❌ One-size-fits-all doesn't work → ✅ Customize per project
+- ❌ Have to change code for every project → ✅ Use config file
+- ❌ Fixing unwanted files → ✅ Skip patterns (e.g., skip `__pycache__`)
+
+**Example Config File (.agi-engineer.yml):**
+```yaml
+# What rules to enforce
+rules:
+  enabled:
+    - F401  # Unused imports - always safe to remove
+    - F541  # Useless f-strings - always safe to remove
+    - W291  # Trailing whitespace - always safe to remove
+    - E711  # Comparison to None - always safe to remove
+  disabled: []
+  safe_only: true  # Only auto-fix things we're 100% sure about
+
+# AI settings
+ai:
+  enabled: true
+  provider: groq  # Which AI to use (groq is free!)
+  max_files_to_analyze: 5  # Don't analyze huge repos
+
+# What to skip
+skip_patterns:
+  - __pycache__    # Python cache files (pointless to check)
+  - .git           # Git internal files (not code)
+  - venv           # Virtual environment (not your code)
+  - node_modules   # JS packages (not your code)
+  - dist/          # Built/compiled files (not your code)
+
+# How to behave
+max_issues_per_run: 1000    # Stop after 1000 issues (huge repos)
+create_pr: false            # Don't auto-create PRs (safer)
+branch_prefix: "agi-engineer/fixes"  # PR branch name
+```
+
+**Translation:** "Hey AGI, for THIS project, check these rules, skip these folders, use Groq AI, and create a nice branch name."
+
+---
+
+### ✅ V1.3: Rate Limiting (Don't Waste Your Free Credits)
+
+**What it means:** You get 10 FREE AI requests per hour. Once you hit that, AGI Engineer waits and tells you to try again later. This **prevents accidentally spending money**.
+
+**Problems it solves:**
+- ❌ Accidentally use $100 in AI credits → ✅ Capped at free tier
+- ❌ No idea how many times I've used AI → ✅ Tracks usage per project
+- ❌ Different AI providers have different limits → ✅ Supports all of them
+
+**How it works:**
+```
+Run 1: ✅ 1/10 calls used
+Run 2: ✅ 2/10 calls used
+Run 3: ✅ 3/10 calls used
+...
+Run 10: ✅ 10/10 calls used (LIMIT HIT)
+Run 11: ⏳ "Try again in 45 minutes"
+         (counter resets after 1 hour)
+```
+
+**Customize limits** in `.agi-engineer.yml`:
+```yaml
+ai:
+  rate_limit:
+    limit: 10              # Up to 10 calls
+    window_seconds: 3600   # Per 1 hour (3600 seconds)
+    storage_path: ~/.agi-engineer/usage.json  # Track here
+```
+
+**Check your usage:**
+```bash
+cat ~/.agi-engineer/usage.json
+```
+
+---
+
+### ✅ V1.4: Automated Tests (19 Passing Tests)
+
+**What it means:** We have 19 automatic tests that check if AGI Engineer works correctly. When you make changes, these tests verify nothing broke.
+
+**Problems it solves:**
+- ❌ Fix one thing, break something else → ✅ Tests catch regressions
+- ❌ "Does this actually work?" → ✅ Proven with tests
+- ❌ Can't modify code safely → ✅ Tests protect changes
+
+**Test Coverage:**
+```
+✅ Rule Classifier Tests (7)
+   - Classifies safe rules correctly
+   - Classifies risky rules correctly
+   - Groups by category
+   - Handles multiple issues
+
+✅ Fix Orchestrator Tests (6)
+   - Plans fixes correctly
+   - Respects safety mode
+   - Executes without errors
+   - Produces correct summary
+
+✅ Safety Checker Tests (6)
+   - Records before/after states
+   - Detects regressions
+   - Formats reports correctly
+```
+
+**Run tests yourself:**
+```bash
+pytest tests/ -v
+```
+
+---
+
+### ✅ V1.5: Metrics & Logging (Track Everything)
+
+**What it means:** Every time you run AGI Engineer, it records:
+- When you ran it
+- How many issues it found
+- How many it fixed
+- Any errors that happened
+- How long it took
+
+**Problems it solves:**
+- ❌ "How many issues did we fix last month?" → ✅ Check logs
+- ❌ "Why did it fail?" → ✅ Error logged with timestamp
+- ❌ No way to improve → ✅ Metrics show trends
+
+**Check your stats:**
+```bash
+cat ~/.agi-engineer/runs.json
+```
+
+---
+
+### ✅ V1.6: Multi-Language Support (Python + JavaScript/TypeScript)
+
+**What it means:** AGI Engineer supports Python, JavaScript, AND TypeScript. Automatic language detection!
+
+**Problems it solves:**
+- ❌ Only works on Python projects → ✅ Works on mixed codebases
+- ❌ Have to use different tools for JS/TS → ✅ One tool for all
+- ❌ Can't analyze full-stack projects → ✅ Can now
+
+**Usage:**
+```bash
+python3 agi_engineer_v3.py /path/to/full-stack-project --smart --ai
+```
+
+---
+
+### ✅ V1.7: Complete Documentation
+
+**What it means:** Everything is documented with examples, diagrams, and clear explanations.
+
+**What's Included:**
+- 📖 **README.md** (this file!) - Overview and examples
+- 📋 **CONTRIBUTING.md** - How developers can help
+- 💻 **In-code docstrings** - Every function explained
+- 🧪 **Test examples** - Shows how to use components
+
+---
+
+## 🎓 Real-World Examples
+
+### Example 1: Fix Your Own Project
+```bash
+cd ~/my-python-project
+python3 /path/to/agi-engineer/agi_engineer_v3.py . --smart --ai
+
+# Result: 5 safe issues fixed, 20 for review, 11 suggestions
+# Time: ~10 seconds
+```
+
+### Example 2: Fix a GitHub Repo and Create PR
+```bash
+python3 agi_engineer_v3.py https://github.com/pallets/flask \
+  --smart \
+  --ai \
+  --pr \
+  --push
+
+# Result: GitHub PR created ready for review!
+```
+
+### Example 3: Just Analyze (No Changes)
+```bash
+python3 agi_engineer_v3.py . --smart --analyze-only --ai
+```
+
+---
+
+## 🛠️ AI Providers
+
+| Provider | Speed | Cost | Best For |
+|----------|-------|------|----------|
+| 🟢 **Groq** | ⚡ Fastest | FREE | Everyone (start here!) |
+| 🔵 **Together AI** | ⚡ Fast | $💰 Cheap | Heavy users |
+| 🟡 **OpenRouter** | 🟡 Moderate | $💰 Medium | Model variety |
+| 🟣 **Anthropic** | 🟡 Moderate | $💰💰 Premium | Best quality |
+
+**Getting Groq (FREE):**
+```bash
+# 1. Go to https://console.groq.com/
+# 2. Sign up free (no credit card!)
+# 3. Copy your API key
+export GROQ_API_KEY=gsk_...
+```
+
+---
+
+## 📈 Performance
+
+| Repo Size | Time | Issues | Fixes |
+|-----------|------|--------|-------|
+| Small (< 100 issues) | 5-10s | 36 | 5 |
+| Medium (100-500) | 30-60s | 240 | 85 |
+| Large (500+) | 2-5m | 1200+ | 400+ |
+
+---
+
+## 🔧 Advanced Usage
+
+```bash
+# Show all options
+python3 agi_engineer_v3.py --help
+
+# Analyze only (safe)
+python3 agi_engineer_v3.py . --analyze-only
+
+# Smart mode (classify issues)
+python3 agi_engineer_v3.py . --smart
+
+# With AI analysis
+python3 agi_engineer_v3.py . --smart --ai
+
+# Auto-fix
+python3 agi_engineer_v3.py . --smart
+
+# Create PR
+python3 agi_engineer_v3.py . --smart --pr --push
+
+# Custom branch name
+python3 agi_engineer_v3.py . --smart --branch my-fixes
+
+# Don't clean up cloned repo
+python3 agi_engineer_v3.py https://github.com/user/repo --no-cleanup
+```
+
+---
+
+## 🚨 Safety Features
+
+### 1: Before/After Comparison
+Verifies fixes don't break code.
+
+### 2: Safe-Mode Only
+Only fixes things it's 100% confident about.
+
+### 3: Git-Based
+Everything uses git branches - reversible anytime.
+
+### 4: History Preserved
+Every change is traceable in git log.
+
+---
+
+## 💡 Common Questions
+
+**Q: Will it delete my code?**
+A: No! Creates git branch, everything is reversible.
+
+**Q: Do I need AI?**
+A: No! Works without AI, just less detailed.
+
+**Q: Is Groq really free?**
+A: Yes! No credit card needed.
+
+**Q: Can it break my code?**
+A: Very unlikely. Only fixes safe things.
+
+**Q: How do I see what changed?**
+A: Use `--analyze-only` first to see everything.
+
+---
+
+## 🔗 Resources
+
+- **GitHub**: https://github.com/Theminacious/agi-engineer
+- **Issues**: https://github.com/Theminacious/agi-engineer/issues
+- **Groq**: https://console.groq.com/
+- **Ruff**: https://docs.astral.sh/ruff/
+- **ESLint**: https://eslint.org/
+
+---
+
+## 📝 License
+
+MIT License - Free to use and modify!
+
+---
+
+**Ready to clean up your code? Start in 5 minutes!** 🚀
