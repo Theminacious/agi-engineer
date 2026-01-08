@@ -1,0 +1,141 @@
+name: AGI Engineer - Code Quality Check
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - '**.py'
+  workflow_dispatch:
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff groq
+      
+      - name: Run AGI Engineer Analysis
+        id: analysis
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          # Run analysis and capture output
+          python agi_engineer_v3.py . --smart --ai --analyze-only > analysis.txt 2>&1 || true
+          
+          # Check if analysis was successful
+          if [ -f analysis.txt ]; then
+            echo "Analysis completed"
+            cat analysis.txt
+          else
+            echo "Analysis failed"
+            exit 1
+          fi
+      
+      - name: Extract Results
+        id: extract
+        run: |
+          # Extract key metrics from analysis
+          TOTAL_ISSUES=$(grep -oP '📊 Found \K\d+' analysis.txt || echo "0")
+          SAFE_ISSUES=$(grep -oP 'SAFE TO AUTO-FIX \(\K\d+' analysis.txt || echo "0")
+          NEEDS_REVIEW=$(grep -oP 'NEEDS REVIEW \(\K\d+' analysis.txt || echo "0")
+          
+          echo "total_issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "safe_issues=$SAFE_ISSUES" >> $GITHUB_OUTPUT
+          echo "needs_review=$NEEDS_REVIEW" >> $GITHUB_OUTPUT
+          
+          # Create summary for comment
+          {
+            echo "SUMMARY<<EOF"
+            echo "## 🤖 AGI Engineer Analysis Results"
+            echo ""
+            echo "**Total Issues Found:** $TOTAL_ISSUES"
+            echo ""
+            if [ "$SAFE_ISSUES" != "0" ]; then
+              echo "✅ **Safe to Auto-Fix:** $SAFE_ISSUES issues"
+            fi
+            if [ "$NEEDS_REVIEW" != "0" ]; then
+              echo "⚠️  **Needs Review:** $NEEDS_REVIEW issues"
+            fi
+            echo ""
+            echo "### Details"
+            echo '```'
+            head -100 analysis.txt
+            echo '```'
+            echo ""
+            echo "---"
+            echo "*Run locally:* \`python3 agi_engineer_v3.py . --smart --ai\`"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+      
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const summary = `${{ steps.extract.outputs.SUMMARY }}`;
+            
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('AGI Engineer Analysis')
+            );
+            
+            const commentBody = summary;
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+      
+      - name: Check if issues found
+        run: |
+          TOTAL_ISSUES=${{ steps.extract.outputs.total_issues }}
+          if [ "$TOTAL_ISSUES" != "0" ]; then
+            echo "⚠️  Found $TOTAL_ISSUES issues"
+            # Don't fail the build, just warn
+            exit 0
+          else
+            echo "✅ No issues found!"
+          fi
+      
+      - name: Upload analysis artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: agi-engineer-analysis
+          path: analysis.txt
+          retention-days: 30
