@@ -46,41 +46,54 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Basic Usage - Fix Local Repository
+### Automated GitHub Actions Workflow
 
-```bash
-python3 agi_engineer_v2.py /path/to/your/repo
+The easiest way to use AGI Engineer is via GitHub Actions - it runs automatically on every pull request!
+
+**Setup (one-time):**
+
+1. Add `GROQ_API_KEY` secret to your repo:
+   - Go to Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `GROQ_API_KEY`
+   - Value: Your Groq API key (get free key at https://console.groq.com)
+
+2. The workflow will then automatically:
+   - Run on every PR targeting `main` or `master`
+   - Analyze code with Ruff + AI
+   - Post detailed findings as PR comments
+   - Classify issues by safety (auto-fixable vs needs review)
+   - Suggest improvements with AI reasoning
+
+**Example PR Comment:**
+```
+🤖 AGI Engineer Analysis Results
+Total Issues Found: 21
+✅ Safe to Auto-Fix: 10 issues
+⚠️ Needs Review: 1 issues
+
+📋 ISSUE CLASSIFICATION
+✅ SAFE TO AUTO-FIX (10 issues)
+   • F401: Unused import (8)
+   • F541: Useless f-string (2)
+
+⚠️ NEEDS REVIEW (1 issues)
+   • F841: Unused variable (1)
+
+🤖 AI ANALYSIS
+[Claude-powered code review suggestions...]
 ```
 
-### Clone and Fix a GitHub Repository
+### Manual Usage - Fix Local Repository
 
 ```bash
-python3 agi_engineer_v2.py https://github.com/user/repo
+python3 agi_engineer_v3.py /path/to/your/repo --smart --ai
 ```
 
-### Fix and Create Pull Request
+### Analyze Only (No Fixes)
 
 ```bash
-python3 agi_engineer_v2.py https://github.com/user/repo --pr
-```
-
-### Fix Specific Rules Only
-
-```bash
-python3 agi_engineer_v2.py /path/to/repo --rules F401,F541,W291
-```
-
-### Advanced Options
-
-```bash
-# Custom branch name
-python3 agi_engineer_v2.py https://github.com/user/repo --branch my-fixes --push
-
-# Keep cloned repo for inspection
-python3 agi_engineer_v2.py https://github.com/user/repo --no-cleanup
-
-# Just push changes without PR
-python3 agi_engineer_v2.py /path/to/repo --push
+python3 agi_engineer_v3.py /path/to/repo --smart --ai --analyze-only
 ```
 
 ## Command Line Options
