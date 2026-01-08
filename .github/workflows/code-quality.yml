@@ -60,35 +60,45 @@ jobs:
           echo "needs_review=$NEEDS_REVIEW" >> $GITHUB_OUTPUT
           
           # Create summary for comment
-          {
-            echo "SUMMARY<<EOF"
-            echo "## 🤖 AGI Engineer Analysis Results"
-            echo ""
-            echo "**Total Issues Found:** $TOTAL_ISSUES"
-            echo ""
-            if [ "$SAFE_ISSUES" != "0" ]; then
-              echo "✅ **Safe to Auto-Fix:** $SAFE_ISSUES issues"
-            fi
-            if [ "$NEEDS_REVIEW" != "0" ]; then
-              echo "⚠️  **Needs Review:** $NEEDS_REVIEW issues"
-            fi
-            echo ""
-            echo "### Details"
-            echo '```'
-            head -100 analysis.txt
-            echo '```'
-            echo ""
-            echo "---"
-            echo "*Run locally:* \`python3 agi_engineer_v3.py . --smart --ai\`"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          cat > pr_comment.md <<'COMMENT_EOF'
+          ## 🤖 AGI Engineer Analysis Results
+          
+          **Total Issues Found:** TOTAL_ISSUES_PLACEHOLDER
+          
+          SAFE_ISSUES_PLACEHOLDER
+          NEEDS_REVIEW_PLACEHOLDER
+          
+          ### Details
+          ```
+          ANALYSIS_DETAILS_PLACEHOLDER
+          ```
+          
+          ---
+          *Run locally:* `python3 agi_engineer_v3.py . --smart --ai`
+          COMMENT_EOF
+          
+          # Replace placeholders
+          sed -i "s/TOTAL_ISSUES_PLACEHOLDER/$TOTAL_ISSUES/g" pr_comment.md
+          if [ "$SAFE_ISSUES" != "0" ]; then
+            sed -i "s/SAFE_ISSUES_PLACEHOLDER/✅ **Safe to Auto-Fix:** $SAFE_ISSUES issues/g" pr_comment.md
+          else
+            sed -i "s/SAFE_ISSUES_PLACEHOLDER//g" pr_comment.md
+          fi
+          if [ "$NEEDS_REVIEW" != "0" ]; then
+            sed -i "s/NEEDS_REVIEW_PLACEHOLDER/⚠️  **Needs Review:** $NEEDS_REVIEW issues/g" pr_comment.md
+          else
+            sed -i "s/NEEDS_REVIEW_PLACEHOLDER//g" pr_comment.md
+          fi
+          sed -i "/ANALYSIS_DETAILS_PLACEHOLDER/{r analysis.txt
+          d;}" pr_comment.md
       
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const summary = `${{ steps.extract.outputs.SUMMARY }}`;
+            const fs = require('fs');
+            const commentBody = fs.readFileSync('pr_comment.md', 'utf8');
             
             // Find existing comment
             const comments = await github.rest.issues.listComments({
@@ -101,8 +111,6 @@ jobs:
               comment.user.type === 'Bot' && 
               comment.body.includes('AGI Engineer Analysis')
             );
-            
-            const commentBody = summary;
             
             if (botComment) {
               // Update existing comment
