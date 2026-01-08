@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: agi-engineer-db
+    environment:
+      POSTGRES_USER: agi_engineer
+      POSTGRES_PASSWORD: dev_password_change_in_prod
+      POSTGRES_DB: agi_engineer_v2
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - agi-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agi-engineer-backend
+    environment:
+      DATABASE_URL: postgresql://agi_engineer:dev_password_change_in_prod@db:5432/agi_engineer_v2
+      API_ENV: development
+      GITHUB_APP_ID: ${GITHUB_APP_ID}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-in-prod}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-secret-change-in-prod}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+    networks:
+      - agi-network
+    command: python main.py
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: agi-engineer-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+    networks:
+      - agi-network
+
+volumes:
+  postgres_data:
+
+networks:
+  agi-network:
+    driver: bridge
