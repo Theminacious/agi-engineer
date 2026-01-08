@@ -249,6 +249,9 @@ See **Comparison** section below.
 | 02-PHASE2-OAUTH-WEBHOOKS.md | Auth & webhooks | 400 lines | [Phase 2](./v2/02-PHASE2-OAUTH-WEBHOOKS.md) |
 | 03-PHASE3-ANALYSIS.md | Analysis engine | 400 lines | [Phase 3](./v2/03-PHASE3-ANALYSIS.md) |
 | 04-PHASE4-DASHBOARD.md | Frontend & UI | 400 lines | [Phase 4](./v2/04-PHASE4-DASHBOARD.md) |
+| 05-PHASE5-DEPLOYMENT.md | Production & cloud | 500 lines | [Phase 5](./v2/05-PHASE5-DEPLOYMENT.md) |
+| 06-TESTING-QA.md | Testing & API docs | 500 lines | [Testing](./v2/06-TESTING-QA.md) |
+| 07-OPERATIONS.md | Ops & maintenance | 500 lines | [Operations](./v2/07-OPERATIONS.md) |
 
 ### Future & Roadmap (docs/)
 
@@ -319,14 +322,14 @@ See **Comparison** section below.
 
 ```
 V1 Documentation:      1,600+ lines
-V2 Documentation:      2,200+ lines
+V2 Documentation:      3,800+ lines (6 phase guides + 2 new guides)
 Summary Documents:       800+ lines
 Navigation Guides:        400+ lines
 ─────────────────────────────────
-Total:                 5,000+ lines
+Total:                 6,600+ lines
 
-Files:                        13
-Version-specific:             9
+Files:                        16
+Version-specific:             12
 Cross-cutting:                4
 ```
 

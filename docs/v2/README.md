@@ -1143,7 +1143,35 @@ For detailed information about each phase:
 - [Phase 2: OAuth & Webhooks](./02-PHASE2-OAUTH-WEBHOOKS.md) - Authentication, events
 - [Phase 3: Analysis Integration](./03-PHASE3-ANALYSIS.md) - V1 engine, background jobs
 - [Phase 4: Dashboard](./04-PHASE4-DASHBOARD.md) - Frontend pages, components
-- [Phase 5: Deployment](./05-PHASE5-DEPLOYMENT.md) - Production setup
+- [Phase 5: Deployment](./05-PHASE5-DEPLOYMENT.md) - Production setup & cloud deployment
+- [Testing & QA](./06-TESTING-QA.md) - Unit, integration, E2E tests, API docs
+- [Operations & Maintenance](./07-OPERATIONS.md) - Monitoring, maintenance, incident response
+
+---
+
+## Quick Links
+
+**Getting Started:**
+- [Quick Start](#quick-start) - 5 minute setup
+- [Running Locally](#running-locally) - Development environment
+- [API Documentation](./06-TESTING-QA.md#api-documentation) - API endpoints
+
+**Deployment:**
+- [Docker Setup](./05-PHASE5-DEPLOYMENT.md#docker-deployment) - Container deployment
+- [Cloud Platforms](./05-PHASE5-DEPLOYMENT.md#cloud-platform-deployment) - AWS, Heroku, DigitalOcean
+- [Production Checklist](./05-PHASE5-DEPLOYMENT.md#pre-deployment-checklist) - Before going live
+
+**Testing:**
+- [Backend Tests](./06-TESTING-QA.md#backend-testing) - pytest unit and integration
+- [Frontend Tests](./06-TESTING-QA.md#frontend-testing) - Jest and React Testing Library
+- [E2E Tests](./06-TESTING-QA.md#integration-testing) - Cypress full user flows
+
+**Operations:**
+- [Monitoring](./07-OPERATIONS.md#monitoring-dashboard) - Prometheus, Grafana, alerts
+- [Maintenance](./07-OPERATIONS.md#maintenance-tasks) - Database, backups, certificates
+- [Incidents](./07-OPERATIONS.md#incident-response) - Response playbooks, escalation
+- [Performance](./05-PHASE5-DEPLOYMENT.md#performance-optimization) - Database, caching, optimization
+- [Troubleshooting](./05-PHASE5-DEPLOYMENT.md#troubleshooting) - Common issues and fixes
 
 ---
 
