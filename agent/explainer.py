@@ -1,7 +1,7 @@
 """
 Explainer Engine - Generate human-readable explanations for fixes
 """
-from typing import Dict, Optional
+from typing import Dict
 
 class ExplainerEngine:
     """Generate detailed explanations for each code fix"""
