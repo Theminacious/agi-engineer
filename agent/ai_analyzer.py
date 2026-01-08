@@ -3,8 +3,7 @@ AI Analyzer - LLM-powered intelligent code analysis
 Supports multiple LLM providers: Groq (FREE), Together AI, OpenRouter, Anthropic, etc.
 """
 import os
-import json
-from typing import Dict, List, Optional
+from typing import Optional
 
 class AIAnalyzer:
     """

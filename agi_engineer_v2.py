@@ -204,7 +204,7 @@ Examples:
         return 1
     finally:
         if cleanup_needed and temp_dir and os.path.exists(temp_dir):
-            print(f"\n🧹 Cleaning up...")
+            print("\n🧹 Cleaning up...")
             shutil.rmtree(temp_dir)
 
 

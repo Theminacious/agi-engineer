@@ -8,8 +8,6 @@ import sys
 import argparse
 import shutil
 import tempfile
-import subprocess
-import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AGENT_DIR = os.path.join(BASE_DIR, "agent")
@@ -23,7 +21,7 @@ from git_ops import (
     push_branch, create_pull_request,
     generate_branch_name, generate_pr_body, get_repo_info
 )
-from rule_classifier import RuleClassifier, RuleCategory
+from rule_classifier import RuleClassifier
 from fix_orchestrator import FixOrchestrator
 from explainer import ExplainerEngine
 from safety_checker import SafetyChecker
@@ -319,7 +317,7 @@ Examples:
         return 1
     finally:
         if cleanup_needed and temp_dir and os.path.exists(temp_dir):
-            print(f"\n🧹 Cleaning up...")
+            print("\n🧹 Cleaning up...")
             shutil.rmtree(temp_dir)
 
 
