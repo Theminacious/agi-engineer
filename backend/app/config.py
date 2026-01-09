@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./agi_engineer_v2.db"
 
+    # Redis (for Celery background tasks)
+    redis_url: str = "redis://localhost:6379/0"
+
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000

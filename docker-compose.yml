@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+  # Redis for Celery
+  redis:
+    image: redis:7-alpine
+    container_name: agi-engineer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - agi-network
+    command: redis-server --appendonly yes
+
   # PostgreSQL Database
   db:
     image: postgres:16-alpine
@@ -24,6 +36,7 @@ services:
     container_name: agi-engineer-backend
     environment:
       DATABASE_URL: postgresql://agi_engineer:dev_password_change_in_prod@db:5432/agi_engineer_v2
+      REDIS_URL: redis://redis:6379/0
       API_ENV: development
       GITHUB_APP_ID: ${GITHUB_APP_ID}
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
@@ -36,11 +49,34 @@ services:
       - "8000:8000"
     depends_on:
       - db
+      - redis
     volumes:
       - ./backend:/app
     networks:
       - agi-network
     command: python main.py
+
+  # Celery Worker for background tasks
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agi-engineer-celery
+    environment:
+      DATABASE_URL: postgresql://agi_engineer:dev_password_change_in_prod@db:5432/agi_engineer_v2
+      REDIS_URL: redis://redis:6379/0
+      API_ENV: development
+      GITHUB_APP_ID: ${GITHUB_APP_ID}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - agi-network
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
 
   # Next.js Frontend
   frontend:
@@ -61,6 +97,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   agi-network:

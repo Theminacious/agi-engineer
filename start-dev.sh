@@ -27,7 +27,18 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}Cleaning up existing processes...${NC}"
 lsof -ti:8000 2>/dev/null | xargs kill -9 2>/dev/null || true
 lsof -ti:3000 2>/dev/null | xargs kill -9 2>/dev/null || true
+lsof -ti:6379 2>/dev/null | xargs kill -9 2>/dev/null || true
 sleep 1
+
+# Start Redis (for background tasks)
+echo -e "${YELLOW}Starting Redis (Port 6379)...${NC}"
+if command -v redis-server &> /dev/null; then
+  nohup redis-server --port 6379 --daemonize yes > "$PROJECT_ROOT/redis.log" 2>&1
+  echo -e "${GREEN}✓ Redis started${NC}"
+else
+  echo -e "${YELLOW}⚠ Redis not found - install with: brew install redis${NC}"
+  echo -e "${YELLOW}  Background tasks will be disabled${NC}"
+fi
 
 # Start Backend (Uvicorn)
 echo -e "${YELLOW}Starting Backend (Port 8000) with Uvicorn...${NC}"
@@ -44,6 +55,15 @@ export NEXT_PUBLIC_API_URL="http://localhost:8000"
 nohup npm run dev > "$PROJECT_ROOT/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 echo -e "${GREEN}✓ Frontend started (PID: $FRONTEND_PID)${NC}"
+
+# Start Celery Worker (optional, for background tasks)
+if command -v redis-server &> /dev/null && pgrep -x redis-server > /dev/null; then
+  echo -e "${YELLOW}Starting Celery Worker...${NC}"
+  cd "$BACKEND_DIR"
+  nohup "$PYTHON_CMD" -m celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 > "$PROJECT_ROOT/celery.log" 2>&1 &
+  CELERY_PID=$!
+  echo -e "${GREEN}✓ Celery Worker started (PID: $CELERY_PID)${NC}"
+fi
 
 # Wait for servers to start
 echo -e "${YELLOW}Waiting for servers to start...${NC}"
@@ -72,12 +92,20 @@ echo ""
 echo -e "Frontend: ${GREEN}http://localhost:3000${NC}"
 echo -e "Backend:  ${GREEN}http://localhost:8000${NC}"
 echo -e "API Docs: ${GREEN}http://localhost:8000/docs${NC}"
+echo -e "Redis:    ${GREEN}localhost:6379${NC}"
 echo ""
 echo -e "Logs:"
 echo -e "  Backend:  tail -f $PROJECT_ROOT/backend.log"
 echo -e "  Frontend: tail -f $PROJECT_ROOT/frontend.log"
+if [ -n "$CELERY_PID" ]; then
+  echo -e "  Celery:   tail -f $PROJECT_ROOT/celery.log"
+fi
 echo ""
-echo -e "To stop servers: kill $BACKEND_PID $FRONTEND_PID"
+if [ -n "$CELERY_PID" ]; then
+  echo -e "To stop servers: kill $BACKEND_PID $FRONTEND_PID $CELERY_PID"
+else
+  echo -e "To stop servers: kill $BACKEND_PID $FRONTEND_PID"
+fi
 echo ""
 
 # Keep script running

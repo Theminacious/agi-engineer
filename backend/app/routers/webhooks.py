@@ -8,6 +8,7 @@ from app.models.repository import Repository
 from app.models.analysis_run import AnalysisRun, RunStatus
 from app.security import validate_webhook_signature
 from app.config import settings
+from app.tasks import run_code_analysis
 import json
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -102,6 +103,10 @@ async def handle_push_event(payload: dict, db: Session) -> dict:
     )
     db.add(run)
     db.commit()
+    db.refresh(run)
+
+    # Queue background task for analysis
+    run_code_analysis.delay(run.id)
 
     return {
         "status": "queued",
@@ -155,6 +160,10 @@ async def handle_pull_request_event(payload: dict, action: str, db: Session) -> 
     )
     db.add(run)
     db.commit()
+    db.refresh(run)
+
+    # Queue background task for analysis
+    run_code_analysis.delay(run.id)
 
     return {
         "status": "queued",
@@ -210,6 +219,10 @@ async def handle_review_event(payload: dict, db: Session) -> dict:
     )
     db.add(run)
     db.commit()
+    db.refresh(run)
+
+    # Queue background task for analysis
+    run_code_analysis.delay(run.id)
 
     return {
         "status": "queued",
