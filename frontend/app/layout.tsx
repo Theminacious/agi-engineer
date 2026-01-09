@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import "./globals.css"
+import "../globals.css"
 
 export const metadata: Metadata = {
   title: "AGI Engineer - Code Quality Dashboard",
@@ -12,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="bg-background text-foreground">{children}</body>
     </html>
   )
 }

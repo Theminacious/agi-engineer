@@ -1,8 +1,8 @@
-# �� AGI Engineer v1 - Complete Python Code Fixer
+# 🤖 AGI Engineer V2 - AI-Powered Code Analysis Platform
 
-> **What is this?** Imagine a robot that reads your Python code, finds all the problems (unused imports, bad spacing, etc.), explains WHY they're problems, and then **automatically fixes them**. That's AGI Engineer!
+> **What is this?** A complete full-stack application for automated code quality analysis powered by AI. Analyzes GitHub repositories, finds issues, explains them, and suggests fixes.
 
-Think of it like **Grammarly for code** 📝 — but smarter, faster, and with AI.
+Think of it like **GitHub Actions + CodeClimate + ChatGPT** 🚀 — all in one platform.
 
 ---
 

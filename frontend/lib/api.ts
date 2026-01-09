@@ -70,7 +70,7 @@ export async function oauthCallback(code: string, state: string): Promise<{ toke
 
 // Analysis Runs
 export async function getRunDetail(runId: number, token?: string): Promise<AnalysisRunDetail> {
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
   const res = await fetch(`${API_BASE}/api/runs/${runId}`, { headers })
   if (!res.ok) throw new Error('Failed to get run details')
   return res.json()
@@ -91,7 +91,7 @@ export async function listRuns(
 
   const query = searchParams.toString()
   const url = query ? `${API_BASE}/api/runs?${query}` : `${API_BASE}/api/runs`
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
 
   const res = await fetch(url, { headers })
   if (!res.ok) throw new Error('Failed to list runs')
@@ -100,7 +100,7 @@ export async function listRuns(
 
 // Repository Health
 export async function getRepositoryHealth(repoId: number, token?: string): Promise<RepositoryHealth> {
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
   const res = await fetch(`${API_BASE}/api/repositories/${repoId}/health`, { headers })
   if (!res.ok) throw new Error('Failed to get repository health')
   return res.json()

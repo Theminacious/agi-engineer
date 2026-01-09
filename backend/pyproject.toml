@@ -13,14 +13,13 @@ license = {text = "MIT"}
 dependencies = [
     "fastapi==0.109.0",
     "uvicorn[standard]==0.27.0",
-    "pydantic==2.5.0",
+    "pydantic==2.5.3",
     "pydantic-settings==2.1.0",
     "sqlalchemy==2.0.23",
     "alembic==1.12.1",
-    "psycopg2-binary==2.9.9",
     "python-dotenv==1.0.0",
     "requests==2.31.0",
-    "pyjwt==2.8.1",
+    "pyjwt==2.10.1",
     "cryptography==41.0.7",
     "PyYAML==6.0.1",
 ]

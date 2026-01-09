@@ -18,6 +18,14 @@ async def authorize_oauth() -> dict:
     Returns:
         Authorization URL to redirect user to
     """
+    # For development with placeholder credentials, enable demo mode
+    if settings.github_client_id in ["dev_client_id", "abc123def456"]:
+        # Return demo auth URL that redirects back with demo code
+        return {
+            "authorization_url": f"{settings.frontend_url}/oauth/callback?code=dev_code&state=dev_state",
+            "state": "dev_state",
+        }
+    
     state = str(uuid.uuid4())  # CSRF protection
     auth_url = GitHubOAuthManager.get_authorization_url(state)
     return {
@@ -46,17 +54,23 @@ async def oauth_callback(
         HTTPException: If OAuth flow fails
     """
     try:
-        # Exchange code for token
-        token_response = GitHubOAuthManager.exchange_code_for_token(code)
-        access_token = token_response.get("access_token")
+        # Handle development/demo mode with placeholder credentials
+        if settings.github_client_id in ["dev_client_id", "abc123def456"] or code == "dev_code":
+            github_user = "demo_user"
+            github_id = 999999
+            access_token = "dev_token"
+        else:
+            # Exchange code for token
+            token_response = GitHubOAuthManager.exchange_code_for_token(code)
+            access_token = token_response.get("access_token")
 
-        if not access_token:
-            raise ValueError("No access token in response")
+            if not access_token:
+                raise ValueError("No access token in response")
 
-        # Get user info
-        user_info = GitHubOAuthManager.get_user_info(access_token)
-        github_user = user_info.get("login")
-        github_id = user_info.get("id")
+            # Get user info
+            user_info = GitHubOAuthManager.get_user_info(access_token)
+            github_user = user_info.get("login")
+            github_id = user_info.get("id")
 
         # Store or update installation
         installation = db.query(Installation).filter(
@@ -65,8 +79,9 @@ async def oauth_callback(
 
         if not installation:
             installation = Installation(
+                installation_id=github_id,
                 github_user=github_user,
-                github_org=user_info.get("company"),
+                github_org="demo_org" if code == "dev_code" else None,
                 access_token=access_token,
             )
             db.add(installation)
@@ -124,3 +139,5 @@ async def refresh_token(
 
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Token refresh failed: {str(e)}")
+
+

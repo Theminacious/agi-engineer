@@ -105,6 +105,7 @@ async def list_runs(
 
     runs = query.order_by(AnalysisRun.created_at.desc()).limit(limit).all()
 
+    # Align API contract: include both total_results (frontend) and results_count (legacy)
     return [
         {
             "id": r.id,
@@ -112,6 +113,7 @@ async def list_runs(
             "event": r.github_event,
             "status": r.status.value,
             "branch": r.github_branch,
+            "total_results": len(r.results),
             "results_count": len(r.results),
             "created_at": r.created_at,
         }
