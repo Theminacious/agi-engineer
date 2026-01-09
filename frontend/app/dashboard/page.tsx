@@ -69,7 +69,7 @@ export default function DashboardPage() {
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 {/* Total Runs */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 transition">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-lg transition-all duration-200">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600 mb-1">Total Runs</p>
@@ -85,7 +85,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Completed */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 transition">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-green-300 hover:shadow-lg transition-all duration-200">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600 mb-1">Successful</p>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Issues */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 transition">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-amber-300 hover:shadow-lg transition-all duration-200">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600 mb-1">Issues Found</p>
@@ -117,7 +117,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Pending */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 transition">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 hover:shadow-lg transition-all duration-200">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600 mb-1">Pending</p>
@@ -157,7 +157,21 @@ export default function DashboardPage() {
                 <div>
                   {runs.length === 0 ? (
                     <div className="p-12 text-center">
-                      <EmptyState message="No analysis runs yet. Start analyzing your repositories!" icon="📊" />
+                      <div className="max-w-md mx-auto">
+                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Code2 className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Analysis Runs Yet</h3>
+                        <p className="text-gray-600 mb-6">
+                          Connect your GitHub repositories to start analyzing your code automatically.
+                        </p>
+                        <Link href="/runs">
+                          <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+                            View All Runs
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        </Link>
+                      </div>
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-200">
@@ -165,12 +179,12 @@ export default function DashboardPage() {
                         <Link
                           key={run.id}
                           href={`/runs/${run.id}`}
-                          className="block p-6 hover:bg-gray-50 transition border-l-4 border-transparent hover:border-l-blue-600"
+                          className="block p-6 hover:bg-blue-50 transition-all duration-200 border-l-4 border-transparent hover:border-l-blue-600 group"
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-2">
-                                <h3 className="font-semibold text-gray-900">
+                                <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition">
                                   Run #{run.id}
                                 </h3>
                                 <Badge variant="secondary" className="text-xs">
@@ -178,7 +192,7 @@ export default function DashboardPage() {
                                 </Badge>
                               </div>
                               <p className="text-sm text-gray-600 mb-2">
-                                Branch: <code className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">{run.branch}</code>
+                                Branch: <code className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700 font-mono">{run.branch}</code>
                               </p>
                               <p className="text-xs text-gray-500">
                                 {new Date(run.created_at).toLocaleString()}
@@ -193,7 +207,7 @@ export default function DashboardPage() {
                                 <p className="text-xs text-gray-600">issues</p>
                               </div>
                               <StatusBadge status={run.status} />
-                              <span className="text-gray-400 text-lg">
+                              <span className="text-gray-400 group-hover:text-blue-600 transition text-lg">
                                 →
                               </span>
                             </div>
