@@ -15,7 +15,7 @@ class PerformanceAgent(BaseAgent):
     def __init__(self, config: Dict[str, Any] = None):
         """Initialize PerformanceAgent."""
         super().__init__(AgentType.PERFORMANCE, config)
-        self.complexity_threshold = config.get('complexity_threshold', 10) if config else 10
+        self.complexity_threshold = config.get('complexity_threshold', 6) if config else 6
     
     async def analyze(self, repo_path: str, files: List[str]) -> AgentResult:
         """Analyze repository for performance issues.

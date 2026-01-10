@@ -15,9 +15,9 @@ class ArchitectureAgent(BaseAgent):
     def __init__(self, config: Dict[str, Any] = None):
         """Initialize ArchitectureAgent."""
         super().__init__(AgentType.ARCHITECTURE, config)
-        self.max_class_size = config.get('max_class_size', 500) if config else 500
-        self.max_function_size = config.get('max_function_size', 50) if config else 50
-        self.max_parameters = config.get('max_parameters', 5) if config else 5
+        self.max_class_size = config.get('max_class_size', 250) if config else 250
+        self.max_function_size = config.get('max_function_size', 35) if config else 35
+        self.max_parameters = config.get('max_parameters', 3) if config else 3
     
     async def analyze(self, repo_path: str, files: List[str]) -> AgentResult:
         """Analyze repository for architecture issues.
