@@ -1,15 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui'
-import { Menu, X, LogOut, Home, FileText, Code2 } from 'lucide-react'
+import { LogOut, Home, BarChart3, FileText, Zap, Code2 } from 'lucide-react'
 
 export function Header() {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = useState<string | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('jwt_token')
@@ -26,178 +26,110 @@ export function Header() {
     router.push('/')
   }
 
+  const isActive = (path: string) => pathname === path
+
+  const navItems = [
+    { href: '/dashboard', label: 'Dashboard', icon: Home },
+    { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/runs', label: 'Runs', icon: FileText },
+    { href: '/v3-analysis', label: 'V3 Analysis', icon: Zap },
+  ]
+
+  if (!user) {
+    return null
+  }
+
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center gap-8">
-            <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2 hover:opacity-80 transition">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Code2 className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-semibold text-gray-900">
-                AGI Engineer
-              </span>
-            </Link>
-
-            {user && (
-              <nav className="hidden md:flex gap-6">
-                <Link
-                  href="/dashboard"
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition"
-                >
-                  <Home className="w-4 h-4" />
-                  Dashboard
-                </Link>
-                <Link
-                  href="/analytics"
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition"
-                >
-                  <FileText className="w-4 h-4" />
-                  Analytics
-                </Link>
-                <Link
-                  href="/runs"
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition"
-                >
-                  <FileText className="w-4 h-4" />
-                  Runs
-                </Link>
-                <Link
-                  href="/v3-analysis"
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition"
-                >
-                  <Code2 className="w-4 h-4" />
-                  V3 Analysis
-                </Link>
-              </nav>
-            )}
+    <aside className="fixed left-0 top-0 h-screen w-60 bg-card border-r border-border flex flex-col z-40">
+      {/* Logo Section */}
+      <div className="h-14 px-4 flex items-center border-b border-border">
+        <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition">
+          <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
+            <Code2 className="w-4 h-4 text-primary-foreground" />
           </div>
-
-          <div className="hidden md:flex items-center gap-4">
-            {user ? (
-              <>
-                <span className="text-sm text-gray-600">{user}</span>
-                <Button
-                  onClick={handleLogout}
-                  variant="ghost"
-                  className="text-gray-600 hover:text-gray-900"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <Link href="/auth">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">Sign In</Button>
-              </Link>
-            )}
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 hover:bg-gray-100 rounded-md transition"
-            >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden pb-4 border-t border-gray-200">
-            {user ? (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition rounded"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/analytics"
-                  className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition rounded"
-                >
-                  Analytics
-                </Link>
-                <Link
-                  href="/runs"
-                  className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition rounded"
-                >
-                  Runs
-                </Link>
-                <Link
-                  href="/v3-analysis"
-                  className="block px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition rounded font-medium"
-                >
-                  V3 Analysis
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition rounded mt-2"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link href="/auth" className="block px-4 py-2">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">Sign In</Button>
-              </Link>
-            )}
-          </div>
-        )}
+          <span className="text-sm font-semibold text-foreground truncate">
+            AGI Engineer
+          </span>
+        </Link>
       </div>
-    </header>
+
+      {/* Navigation Items */}
+      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        {navItems.map((item) => {
+          const Icon = item.icon
+          const active = isActive(item.href)
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`
+                flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium
+                transition-colors border-l-2
+                ${active
+                  ? 'bg-muted border-l-primary text-primary'
+                  : 'border-l-transparent text-muted-foreground hover:text-foreground hover:bg-muted'
+                }
+              `}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* User Section */}
+      <div className="border-t border-border px-2 py-4 space-y-3">
+        <div className="px-3 py-2 text-xs">
+          <p className="text-muted-foreground truncate">{user}</p>
+        </div>
+        <Button
+          onClick={handleLogout}
+          variant="ghost"
+          className="w-full justify-start text-muted-foreground hover:text-foreground text-xs"
+          size="sm"
+        >
+          <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+          Logout
+        </Button>
+      </div>
+    </aside>
   )
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    pending: { bg: 'bg-gray-100', text: 'text-gray-700' },
-    in_progress: { bg: 'bg-blue-100', text: 'text-blue-700' },
-    completed: { bg: 'bg-green-100', text: 'text-green-700' },
-    failed: { bg: 'bg-red-100', text: 'text-red-700' },
+  const colorMap: Record<string, { text: string }> = {
+    pending: { text: 'text-muted-foreground' },
+    in_progress: { text: 'text-primary' },
+    completed: { text: 'text-foreground' },
+    failed: { text: 'text-destructive' },
   }
 
   const labelMap: Record<string, string> = {
-    pending: '⏳ Pending',
-    in_progress: '⚙️ In Progress',
-    completed: '✅ Completed',
-    failed: '❌ Failed',
+    pending: 'Pending',
+    in_progress: 'In Progress',
+    completed: 'Completed',
+    failed: 'Failed',
   }
 
   const colors = colorMap[status] || colorMap.pending
 
   return (
-    <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+    <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-muted border border-border ${colors.text}`}>
       <span>{labelMap[status] || status}</span>
     </div>
   )
 }
 
 export function CategoryBadge({ category }: { category: string }) {
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    safe: { bg: 'bg-green-100', text: 'text-green-700' },
-    review: { bg: 'bg-amber-100', text: 'text-amber-700' },
-    suggestion: { bg: 'bg-blue-100', text: 'text-blue-700' },
-  }
-
   const labelMap: Record<string, string> = {
-    safe: '✅ Safe',
-    review: '⚠️ Review',
-    suggestion: '💡 Suggestion',
+    safe: 'Safe',
+    review: 'Review',
+    suggestion: 'Suggestion',
   }
-
-  const colors = colorMap[category] || colorMap.suggestion
 
   return (
-    <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
+    <div className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-muted border border-border text-foreground">
       <span>{labelMap[category] || category}</span>
     </div>
   )
@@ -207,8 +139,8 @@ export function Loading() {
   return (
     <div className="flex justify-center items-center p-12">
       <div className="flex flex-col items-center gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-blue-600"></div>
-        <p className="text-gray-600">Loading...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-2 border-muted border-t-primary"></div>
+        <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
     </div>
   )
@@ -216,32 +148,29 @@ export function Loading() {
 
 export function ErrorAlert({ message }: { message: string }) {
   return (
-    <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+    <div className="bg-card border border-destructive text-destructive px-4 py-3 rounded">
       <div className="flex items-center gap-2">
-        <span className="text-lg">❌</span>
         <span>{message}</span>
       </div>
     </div>
   )
 }
 
-export function EmptyState({ message, icon = "📋" }: { message: string; icon?: string }) {
+export function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-center py-12">
-      <div className="text-4xl mb-4">{icon}</div>
-      <p className="text-gray-600 text-lg">{message}</p>
+    <div className="text-center py-8">
+      <p className="text-muted-foreground text-sm">{message}</p>
     </div>
   )
 }
 
 export function InfoAlert({ title, message }: { title: string; message: string }) {
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-      <div className="flex items-start gap-4">
-        <div className="text-2xl">ℹ️</div>
+    <div className="bg-card border border-primary rounded p-4">
+      <div className="flex items-start gap-3">
         <div>
-          <h3 className="font-semibold text-gray-900">{title}</h3>
-          <p className="text-sm text-gray-600 mt-1">{message}</p>
+          <h3 className="font-medium text-foreground text-sm">{title}</h3>
+          <p className="text-xs text-muted-foreground mt-1">{message}</p>
         </div>
       </div>
     </div>
