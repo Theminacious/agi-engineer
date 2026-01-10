@@ -143,17 +143,17 @@ export default function DashboardPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="min-h-screen bg-background">
+        <div className="max-w-7xl mx-auto px-6 py-8">
           {/* Page Header */}
-          <div className="flex justify-between items-start mb-8">
+          <div className="flex justify-between items-start mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600 mt-2">Overview of your code analysis activity</p>
+              <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+              <p className="text-muted-foreground mt-1">Overview of your code analysis activity</p>
             </div>
             <button
               onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded font-medium transition"
             >
               <Plus className="w-4 h-4" />
               Import Repository
@@ -167,135 +167,125 @@ export default function DashboardPage() {
           ) : (
             <>
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                 {/* Total Runs */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-blue-300 hover:shadow-lg transition-all duration-200">
+                <div className="bg-card border border-border rounded p-4 hover:border-primary transition">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">Total Runs</p>
-                      <h3 className="text-3xl font-bold text-gray-900">{stats.total}</h3>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Total Runs</p>
+                      <h3 className="text-2xl font-bold text-foreground">{stats.total}</h3>
                     </div>
-                    <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                      <Code2 className="w-5 h-5 text-blue-600" />
-                    </div>
+                    <Code2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   </div>
-                  <p className="text-xs text-gray-600 mt-4">
-                    <span className="text-green-600 font-semibold">{stats.completed}</span> completed
+                  <p className="text-xs text-muted-foreground mt-3">
+                    <span className="text-foreground font-semibold">{stats.completed}</span> completed
                   </p>
                 </div>
 
                 {/* Completed */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-green-300 hover:shadow-lg transition-all duration-200">
+                <div className="bg-card border border-border rounded p-4 hover:border-primary transition">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">Successful</p>
-                      <h3 className="text-3xl font-bold text-green-600">{stats.completed}</h3>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Successful</p>
+                      <h3 className="text-2xl font-bold text-foreground">{stats.completed}</h3>
                     </div>
-                    <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    </div>
+                    <CheckCircle2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   </div>
-                  <p className="text-xs text-gray-600 mt-4">
+                  <p className="text-xs text-muted-foreground mt-3">
                     {stats.total > 0 ? ((stats.completed / stats.total) * 100).toFixed(1) : '0'}% success rate
                   </p>
                 </div>
 
                 {/* Issues */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-amber-300 hover:shadow-lg transition-all duration-200">
+                <div className="bg-card border border-border rounded p-4 hover:border-primary transition">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">Issues Found</p>
-                      <h3 className="text-3xl font-bold text-amber-600">{stats.totalIssues}</h3>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Issues Found</p>
+                      <h3 className="text-2xl font-bold text-foreground">{stats.totalIssues}</h3>
                     </div>
-                    <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
-                      <AlertCircle className="w-5 h-5 text-amber-600" />
-                    </div>
+                    <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   </div>
-                  <p className="text-xs text-gray-600 mt-4">
+                  <p className="text-xs text-muted-foreground mt-3">
                     Across all analysis runs
                   </p>
                 </div>
 
                 {/* Pending */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-gray-300 hover:shadow-lg transition-all duration-200">
+                <div className="bg-card border border-border rounded p-4 hover:border-primary transition">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">Pending</p>
-                      <h3 className="text-3xl font-bold text-gray-600">{stats.pending}</h3>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Pending</p>
+                      <h3 className="text-2xl font-bold text-foreground">{stats.pending}</h3>
                     </div>
-                    <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-gray-400" />
-                    </div>
+                    <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   </div>
-                  <p className="text-xs text-gray-600 mt-4">
+                  <p className="text-xs text-muted-foreground mt-3">
                     In progress
                   </p>
                 </div>
               </div>
 
               {/* Recent Runs Card */}
-              <div className="bg-white rounded-lg border border-gray-200">
+              <div className="bg-card border border-border rounded">
                 {/* Header */}
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                <div className="p-4 border-b border-border flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <TrendingUp className="w-5 h-5 text-gray-400" />
+                    <TrendingUp className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-900">Recent Analysis</h2>
-                      <p className="text-sm text-gray-600 mt-1">Latest code analysis runs</p>
+                      <h2 className="text-base font-semibold text-foreground">Recent Analysis</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Latest code analysis runs</p>
                     </div>
                   </div>
                   <Link
                     href="/runs"
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-primary hover:text-primary/80 transition"
                   >
                     View All
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-3 h-3" />
                   </Link>
                 </div>
 
                 {/* Content */}
                 <div>
                   {runs.length === 0 ? (
-                    <div className="p-12 text-center">
+                    <div className="p-8 text-center">
                       <div className="max-w-md mx-auto">
-                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Code2 className="w-8 h-8 text-blue-600" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Analysis Runs Yet</h3>
-                        <p className="text-gray-600 mb-6">
+                        <Code2 className="w-6 h-6 text-muted-foreground mx-auto mb-3" />
+                        <h3 className="text-base font-semibold text-foreground mb-2">No Analysis Runs Yet</h3>
+                        <p className="text-muted-foreground text-sm mb-4">
                           Connect your GitHub repositories to start analyzing your code automatically.
                         </p>
                         <Link href="/runs">
-                          <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+                          <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm rounded font-medium transition">
                             View All Runs
-                            <ArrowRight className="w-4 h-4" />
+                            <ArrowRight className="w-3 h-3" />
                           </button>
                         </Link>
                       </div>
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-200">
+                    <div className="divide-y divide-border">
                       {runs.slice(0, 5).map((run) => (
                         <Link
                           key={run.id}
                           href={`/runs/${run.id}`}
-                          className="block p-6 hover:bg-blue-50 transition-all duration-200 border-l-4 border-transparent hover:border-l-blue-600 group"
+                          className="block p-4 hover:bg-muted transition border-l-4 border-transparent hover:border-l-primary group"
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition">
+                              <div className="flex items-center gap-3 mb-1">
+                                <h3 className="font-semibold text-foreground text-sm">
                                   {run.repository_name}
                                 </h3>
-                                <span className="text-sm text-gray-500">Run #{run.id}</span>
+                                <span className="text-xs text-muted-foreground">Run #{run.id}</span>
                                 <Badge variant="secondary" className="text-xs">
                                   {run.event}
                                 </Badge>
                               </div>
-                              <p className="text-sm text-gray-600 mb-2">
-                                Branch: <code className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700 font-mono">{run.branch}</code>
+                              <p className="text-xs text-muted-foreground mb-1">
+                                Branch: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-muted-foreground font-mono">{run.branch}</code>
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-muted-foreground">
                                 {new Date(run.created_at).toLocaleString('en-US', { 
                                   month: 'short', 
                                   day: 'numeric', 
@@ -307,15 +297,15 @@ export default function DashboardPage() {
                               </p>
                             </div>
 
-                            <div className="flex items-center gap-6 text-right ml-4">
+                            <div className="flex items-center gap-4 text-right ml-4">
                               <div>
-                                <div className="text-2xl font-bold text-amber-600 mb-1">
+                                <div className="text-lg font-bold text-foreground mb-0.5">
                                   {run.total_results}
                                 </div>
-                                <p className="text-xs text-gray-600">issues</p>
+                                <p className="text-xs text-muted-foreground">issues</p>
                               </div>
                               <StatusBadge status={run.status} />
-                              <span className="text-gray-400 group-hover:text-blue-600 transition text-lg">
+                              <span className="text-muted-foreground text-base">
                                 →
                               </span>
                             </div>
@@ -331,34 +321,34 @@ export default function DashboardPage() {
 
           {/* Import Repository Modal */}
           {showImportModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-card border border-border rounded max-w-md w-full">
                 {/* Modal Header */}
-                <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Import Repository</h2>
+                <div className="flex justify-between items-center p-4 border-b border-border">
+                  <h2 className="text-base font-semibold text-foreground">Import Repository</h2>
                   <button
                     onClick={() => {
                       setShowImportModal(false)
                       setError(null)
                     }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-muted-foreground hover:text-foreground"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Modal Body */}
-                <div className="p-6 space-y-4">
+                <div className="p-4 space-y-3">
                   {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-700">{error}</p>
+                    <div className="p-3 bg-destructive/10 border border-destructive rounded text-sm">
+                      <p className="text-destructive">{error}</p>
                     </div>
                   )}
 
                   {/* Repository URL Input */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Repository URL <span className="text-red-500">*</span>
+                    <label className="block text-xs font-medium text-foreground mb-1">
+                      Repository URL <span className="text-destructive">*</span>
                     </label>
                     <input
                       type="text"
@@ -366,16 +356,16 @@ export default function DashboardPage() {
                       value={repoUrl}
                       onChange={(e) => setRepoUrl(e.target.value)}
                       disabled={importingRepo}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-muted text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Supports both HTTPS and SSH formats from GitHub
                     </p>
                   </div>
 
                   {/* Branch Input */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-foreground mb-1">
                       Branch
                     </label>
                     <input
@@ -384,28 +374,28 @@ export default function DashboardPage() {
                       value={repoBranch}
                       onChange={(e) => setRepoBranch(e.target.value)}
                       disabled={importingRepo}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-muted text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       The branch to analyze (defaults to main if empty)
                     </p>
                   </div>
 
                   {/* Auto-Fix Checkbox */}
-                  <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start gap-3 p-2 bg-primary/10 border border-primary rounded">
                     <input
                       type="checkbox"
                       id="auto-fix"
                       checked={enableAutoFix}
                       onChange={(e) => setEnableAutoFix(e.target.checked)}
                       disabled={importingRepo}
-                      className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500 mt-0.5 cursor-pointer disabled:cursor-not-allowed"
+                      className="w-4 h-4 text-primary rounded focus:ring-1 focus:ring-primary mt-0.5 cursor-pointer disabled:cursor-not-allowed"
                     />
                     <div className="flex-1">
-                      <label htmlFor="auto-fix" className="text-sm font-medium text-gray-700 cursor-pointer block">
+                      <label htmlFor="auto-fix" className="text-xs font-medium text-foreground cursor-pointer block">
                         🤖 Auto-fix safe issues
                       </label>
-                      <p className="text-xs text-gray-600 mt-1">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Automatically fixes safe issues like unused imports, trailing whitespace, and other non-breaking problems
                       </p>
                     </div>
@@ -413,23 +403,23 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex gap-3 p-6 border-t border-gray-200">
+                <div className="flex gap-3 p-4 border-t border-border">
                   <button
                     onClick={() => {
                       setShowImportModal(false)
                       setError(null)
                     }}
                     disabled={importingRepo}
-                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition disabled:opacity-50"
+                    className="flex-1 px-3 py-1.5 text-muted-foreground bg-muted hover:bg-muted/80 rounded text-sm font-medium transition disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleImportRepository}
                     disabled={importingRepo || !repoUrl.trim()}
-                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                    className="flex-1 px-3 py-1.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground text-sm rounded font-medium transition flex items-center justify-center gap-2"
                   >
-                    {importingRepo && <Loader className="w-4 h-4 animate-spin" />}
+                    {importingRepo && <Loader className="w-3 h-3 animate-spin" />}
                     {importingRepo ? 'Importing...' : 'Import'}
                   </button>
                 </div>
