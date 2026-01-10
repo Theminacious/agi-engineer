@@ -895,3 +895,126 @@ async def run_analysis_on_repo(
             status_code=400,
             detail=f"Failed to queue analysis: {str(e)}"
         )
+
+
+# ============================================================================
+# AGI ENGINEER V3 - MULTI-AGENT ANALYSIS ENDPOINTS
+# ============================================================================
+
+@router.post("/analysis/v3/advanced")
+async def run_v3_advanced_analysis(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Run advanced multi-agent analysis using AGI Engineer v3.
+    
+    This endpoint provides comprehensive analysis using specialized agents:
+    - Security Agent: Vulnerabilities, hardcoded secrets, injection risks
+    - Performance Agent: Complexity, N+1 queries, optimization opportunities
+    - Architecture Agent: Design patterns, SOLID principles, code smells
+    
+    Args:
+        request: HTTP request with JSON body containing:
+            - repository_url: GitHub repository URL - required
+            - branch: Branch to analyze (default: main)
+            - agents: List of agent names to run (default: all)
+                     Options: ['security', 'performance', 'architecture']
+            - parallel: Run agents in parallel (default: true)
+            - files: Optional list of specific files to analyze
+        background_tasks: FastAPI background tasks
+        db: Database session
+        
+    Returns:
+        Multi-agent analysis results with detailed findings
+        
+    Raises:
+        HTTPException: If repository is invalid or analysis fails
+    """
+    try:
+        body = await request.json()
+        repository_url = body.get('repository_url')
+        branch = body.get('branch', 'main')
+        agents = body.get('agents')  # None = all agents
+        parallel = body.get('parallel', True)
+        files = body.get('files')  # None = all files
+        
+        if not repository_url:
+            raise HTTPException(status_code=400, detail="repository_url is required")
+        
+        # Validate GitHub URL
+        try:
+            owner, repo_name = validate_github_url(repository_url)
+            repo_full_name = f"{owner}/{repo_name}"
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        
+        logger.info(f"Starting v3 advanced analysis: {repo_full_name}, branch={branch}, agents={agents}")
+        
+        # Clone repository to temporary directory
+        import tempfile
+        import subprocess
+        from pathlib import Path
+        
+        temp_dir = tempfile.mkdtemp(prefix='agi-v3-')
+        
+        try:
+            # Clone repository
+            clone_cmd = ['git', 'clone', '--depth', '1', '--branch', branch, repository_url, temp_dir]
+            result = subprocess.run(clone_cmd, capture_output=True, text=True, timeout=60)
+            
+            if result.returncode != 0:
+                raise Exception(f"Failed to clone repository: {result.stderr}")
+            
+            # Initialize v3 engine
+            from app.v3_engine import create_v3_engine
+            v3_engine = create_v3_engine()
+            
+            # Run multi-agent analysis
+            import asyncio
+            results = await v3_engine.analyze_repository(
+                repo_path=temp_dir,
+                files=files,
+                agents=agents,
+                parallel=parallel
+            )
+            
+            # Add repository context
+            results['repository'] = {
+                'name': repo_full_name,
+                'branch': branch,
+                'url': repository_url,
+            }
+            
+            return results
+            
+        finally:
+            # Cleanup temporary directory
+            import shutil
+            if Path(temp_dir).exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    except Exception as e:
+        logger.error(f"v3 advanced analysis failed: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Advanced analysis failed: {str(e)}"
+        )
+
+
+@router.get("/analysis/v3/agents")
+async def get_v3_agents():
+    """Get available v3 agents and their capabilities.
+    
+    Returns:
+        List of available agents with their capabilities
+    """
+    from app.v3_engine import create_v3_engine
+    
+    v3_engine = create_v3_engine()
+    
+    return {
+        'agents': v3_engine.get_available_agents(),
+        'capabilities': v3_engine.get_agent_capabilities(),
+        'version': '3.0.0',
+    }

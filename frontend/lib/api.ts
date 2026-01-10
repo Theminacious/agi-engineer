@@ -1,12 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 
 /**
  * API client for backend communication
  */
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Create axios instance
+export const apiClient = axios.create({
+  baseURL: `${API_BASE}/api/v1`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
 
 export interface AnalysisRun {
   id: number
