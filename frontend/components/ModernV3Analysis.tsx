@@ -206,7 +206,7 @@ export function ModernV3Analysis({ results }: { results: V3AnalysisResults }) {
             <div>
               <h1 className="text-4xl font-bold mb-2">Code Analysis Report</h1>
               <p className="text-slate-300 text-lg">
-                {results.repository.name} • {results.repository.branch}
+                {results.repository?.name || 'Unknown Repository'} • {results.repository?.branch || 'main'}
               </p>
             </div>
             <Button 
@@ -335,9 +335,11 @@ export function ModernV3Analysis({ results }: { results: V3AnalysisResults }) {
                 {isExpanded && (
                   <CardContent className="pt-6">
                     {/* Summary */}
-                    <div className="mb-6 p-4 bg-slate-50 rounded-lg">
-                      <p className="text-sm text-slate-700">{result.summary}</p>
-                    </div>
+                    {result.summary && (
+                      <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+                        <p className="text-sm text-slate-700">{result.summary}</p>
+                      </div>
+                    )}
 
                     {/* Issues */}
                     {issueCount > 0 ? (
@@ -349,6 +351,12 @@ export function ModernV3Analysis({ results }: { results: V3AnalysisResults }) {
                           const issueId = `${agentKey}-${idx}`;
                           const isIssueExpanded = expandedIssues.has(issueId);
                           const sevConfig = severityConfig[issue.severity];
+                          
+                          // Skip if severity config not found
+                          if (!sevConfig) {
+                            console.warn(`Unknown severity: ${issue.severity}`);
+                            return null;
+                          }
 
                           return (
                             <div 
