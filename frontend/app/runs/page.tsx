@@ -59,32 +59,27 @@ export default function RunsPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="min-h-screen bg-background">
+        <div className="px-6 py-6">
           {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <TrendingUp className="w-6 h-6 text-gray-400" />
-              <h1 className="text-3xl font-bold text-gray-900">All Analysis Runs</h1>
-            </div>
-            <p className="text-gray-600">Complete history of your code analysis</p>
+          <div className="mb-4">
+            <h1 className="text-lg font-medium text-muted-foreground">Analysis Runs</h1>
           </div>
 
-          {error && <div className="mb-6"><ErrorAlert message={error} /></div>}
+          {error && <div className="mb-4"><ErrorAlert message={error} /></div>}
 
           {/* Controls */}
-          <div className="mb-8 space-y-4">
-            {/* Search and filter bar */}
-            <div className="flex flex-col md:flex-row gap-3">
+          <div className="mb-4 space-y-3">
+            <div className="flex items-center gap-3">
               {/* Search */}
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-2.5 top-2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search by repository, branch, or run ID..."
+                  placeholder="Search repository, branch, ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  className="w-full pl-8 pr-3 py-1.5 bg-muted border border-border rounded text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
                 />
               </div>
 
@@ -92,7 +87,7 @@ export default function RunsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="px-3 py-1.5 bg-muted border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
               >
                 <option value="">All Status</option>
                 <option value="pending">Pending</option>
@@ -105,79 +100,71 @@ export default function RunsPage() {
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="px-4 py-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 rounded-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50"
+                className="px-3 py-1.5 bg-muted hover:bg-card border border-border text-foreground rounded text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Refresh
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
             </div>
 
             {/* Stats */}
-            <div className="flex gap-6 text-sm text-gray-600">
-              <span>Total: <span className="text-gray-900 font-semibold">{runs.length}</span></span>
-              <span>Completed: <span className="text-green-600 font-semibold">{runs.filter(r => r.status === 'completed').length}</span></span>
-              <span>Failed: <span className="text-red-600 font-semibold">{runs.filter(r => r.status === 'failed').length}</span></span>
+            <div className="flex items-center gap-6 text-[11px] text-muted-foreground">
+              <span>Total <span className="font-mono text-foreground ml-1">{runs.length}</span></span>
+              <span>Completed <span className="font-mono text-foreground ml-1">{runs.filter(r => r.status === 'completed').length}</span></span>
+              <span>Failed <span className="font-mono text-foreground ml-1">{runs.filter(r => r.status === 'failed').length}</span></span>
             </div>
           </div>
 
           {loading ? (
             <Loading />
           ) : filteredRuns.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-12">
-              <EmptyState message={searchQuery ? "No runs match your search" : "No runs found"} icon="📊" />
+            <div className="bg-card border border-border rounded p-8">
+              <EmptyState message={searchQuery ? "No runs match your search" : "No runs found"} />
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-card border border-border overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Repository</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Event</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Branch</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Issues</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Created</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Action</th>
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground">id</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground">repository</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground">event</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground">branch</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground">status</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground">issues</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground">created</th>
+                      <th className="px-4 py-2 text-left text-[11px] font-medium text-muted-foreground"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-border">
                     {filteredRuns.map((run) => (
                       <tr
                         key={run.id}
-                        className="hover:bg-gray-50 transition-colors"
+                        onClick={() => router.push(`/runs/${run.id}`)}
+                        className="border-l-2 border-transparent hover:border-primary hover:bg-muted/30 transition-colors cursor-pointer"
                       >
-                        <td className="px-6 py-4 text-sm font-semibold text-blue-600">#{run.id}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{run.repository_name}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{run.event}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <code className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700 border border-gray-200">{run.branch}</code>
-                        </td>
-                        <td className="px-6 py-4 text-sm">
+                        <td className="px-4 py-2 text-xs font-mono text-muted-foreground">#{run.id}</td>
+                        <td className="px-4 py-2 text-sm font-medium text-foreground">{run.repository_name}</td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground">{run.event}</td>
+                        <td className="px-4 py-2 text-xs font-mono text-muted-foreground">{run.branch}</td>
+                        <td className="px-4 py-2 text-xs">
                           <StatusBadge status={run.status} />
                         </td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className="text-amber-600 font-semibold">{run.total_results}</span>
+                        <td className="px-4 py-2 text-xs font-mono text-foreground">{run.total_results}</td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground">
+                          {(() => {
+                            const diff = Date.now() - new Date(run.created_at).getTime()
+                            const minutes = Math.floor(diff / 60000)
+                            const hours = Math.floor(minutes / 60)
+                            const days = Math.floor(hours / 24)
+                            if (days > 0) return `${days}d ago`
+                            if (hours > 0) return `${hours}h ago`
+                            if (minutes > 0) return `${minutes}m ago`
+                            return 'just now'
+                          })()}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {new Date(run.created_at).toLocaleString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric',
-                            hour: 'numeric', 
-                            minute: '2-digit',
-                            hour12: true 
-                          })}
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <Link
-                            href={`/runs/${run.id}`}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 text-xs font-semibold transition-all"
-                          >
-                            View
-                            <span>→</span>
-                          </Link>
+                        <td className="px-4 py-2 text-xs text-muted-foreground">
+                          →
                         </td>
                       </tr>
                     ))}
