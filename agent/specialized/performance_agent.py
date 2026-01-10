@@ -15,7 +15,8 @@ class PerformanceAgent(BaseAgent):
     def __init__(self, config: Dict[str, Any] = None):
         """Initialize PerformanceAgent."""
         super().__init__(AgentType.PERFORMANCE, config)
-        self.complexity_threshold = config.get('complexity_threshold', 6) if config else 6
+        self.complexity_threshold = config.get('complexity_threshold', 4) if config else 4
+        self.max_function_length = config.get('max_function_length', 30) if config else 30
     
     async def analyze(self, repo_path: str, files: List[str]) -> AgentResult:
         """Analyze repository for performance issues.
@@ -190,6 +191,21 @@ class PerformanceAgent(BaseAgent):
                         description=f"Function '{node.name}' has complexity {complexity} (threshold: {self.complexity_threshold})",
                         recommendation="Refactor into smaller functions or simplify control flow",
                         tags=['performance', 'complexity', 'maintainability'],
+                        confidence=1.0,
+                    ))
+                
+                # Check function length
+                func_length = (node.end_lineno - node.lineno + 1) if hasattr(node, 'end_lineno') else 0
+                if func_length > self.max_function_length:
+                    issues.append(AgentIssue(
+                        file_path=file_path,
+                        line_number=node.lineno,
+                        issue_type="PERF_LONG_FUNCTION",
+                        severity=IssueSeverity.MEDIUM,
+                        title=f"Function Too Long: {func_length} lines",
+                        description=f"Function '{node.name}' is {func_length} lines (max: {self.max_function_length})",
+                        recommendation="Break into smaller, focused functions following Single Responsibility Principle",
+                        tags=['performance', 'readability', 'maintainability'],
                         confidence=1.0,
                     ))
         

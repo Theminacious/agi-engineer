@@ -64,7 +64,26 @@ class DocumentationAgent(BaseAgent):
             'Raises:', 'Raise:', 'Throws:', 'Throw:',
             'Example:', 'Examples:', 'Usage:',
             'Note:', 'Notes:', 'Warning:', 'Warnings:',
+            'Attributes:', 'See Also:', 'References:',
         ]
+        
+        # Required README sections for enterprise projects
+        self.required_readme_sections = [
+            'Installation',
+            'Usage',
+            'Features',
+            'Contributing',
+            'License',
+            'API Documentation',
+            'Testing',
+            'Configuration',
+            'Deployment',
+            'Troubleshooting',
+        ]
+        
+        # Minimum docstring length for quality check
+        self.min_docstring_length = 30  # characters
+        self.min_function_doc_lines = 2  # lines for complex functions
         
         # Public API patterns
         self.public_patterns = [

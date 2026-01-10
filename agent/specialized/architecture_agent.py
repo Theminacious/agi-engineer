@@ -15,9 +15,10 @@ class ArchitectureAgent(BaseAgent):
     def __init__(self, config: Dict[str, Any] = None):
         """Initialize ArchitectureAgent."""
         super().__init__(AgentType.ARCHITECTURE, config)
-        self.max_class_size = config.get('max_class_size', 250) if config else 250
-        self.max_function_size = config.get('max_function_size', 35) if config else 35
+        self.max_class_size = config.get('max_class_size', 200) if config else 200
+        self.max_function_size = config.get('max_function_size', 30) if config else 30
         self.max_parameters = config.get('max_parameters', 3) if config else 3
+        self.max_methods_per_class = config.get('max_methods_per_class', 12) if config else 12
     
     async def analyze(self, repo_path: str, files: List[str]) -> AgentResult:
         """Analyze repository for architecture issues.
@@ -242,6 +243,36 @@ class ArchitectureAgent(BaseAgent):
                 recommendation="Split into multiple focused modules",
                 tags=['architecture', 'module-size'],
                 confidence=1.0,
+            ))
+        
+        # Check for too many imports (high coupling)
+        import_count = sum(1 for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom)))
+        if import_count > 20:
+            issues.append(AgentIssue(
+                file_path=file_path,
+                line_number=1,
+                issue_type="ARCH_TOO_MANY_IMPORTS",
+                severity=IssueSeverity.MEDIUM,
+                title=f"Too Many Imports ({import_count})",
+                description=f"Module has {import_count} import statements, indicating high coupling",
+                recommendation="Reduce dependencies or split module into smaller focused units",
+                tags=['architecture', 'coupling'],
+                confidence=0.85,
+            ))
+        
+        # Check for God Module (too many classes)
+        class_count = sum(1 for node in ast.walk(tree) if isinstance(node, ast.ClassDef))
+        if class_count > 10:
+            issues.append(AgentIssue(
+                file_path=file_path,
+                line_number=1,
+                issue_type="ARCH_GOD_MODULE",
+                severity=IssueSeverity.MEDIUM,
+                title=f"God Module ({class_count} classes)",
+                description=f"Module contains {class_count} classes - too many responsibilities",
+                recommendation="Split into separate modules by domain or layer",
+                tags=['architecture', 'god-module'],
+                confidence=0.9,
             ))
         
         # Check for circular dependencies (heuristic: mutual imports)
