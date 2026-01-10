@@ -265,11 +265,15 @@ function AgentResultPanel({ result }: { result: AgentResult }) {
           {result.issues && result.issues.length > 0 && (
             <div className="mt-6 pt-4 border-t border-gray-200">
               <p className="text-sm font-semibold text-gray-700 mb-3">Issue Breakdown by Severity:</p>
-              <div className="flex gap-2 flex-wrap">{Object.entries(issuesBySeverity).map(([severity, count]) => (
-                  <Badge key={severity} variant="outline" className="text-xs">
-                    {severityConfig[severity as keyof typeof severityConfig].label}: {count}
-                  </Badge>
-                ))}
+              <div className="flex gap-2 flex-wrap">{Object.entries(issuesBySeverity).map(([severity, count]) => {
+                  const config = severityConfig[severity as keyof typeof severityConfig];
+                  if (!config) return null;
+                  return (
+                    <Badge key={severity} variant="outline" className="text-xs">
+                      {config.label}: {count}
+                    </Badge>
+                  );
+                })}
               </div>
             </div>
           )}

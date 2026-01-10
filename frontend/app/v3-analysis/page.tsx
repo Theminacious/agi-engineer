@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle } from 'lucide-react';
-import V3AnalysisDisplay from '@/components/V3AnalysisDisplay';
+import { ModernV3Analysis } from '@/components/ModernV3Analysis';
 import { apiClient } from '@/lib/api';
 
 interface AgentOption {
@@ -102,27 +102,32 @@ export default function V3AnalysisPage() {
   
   if (results) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="mb-6">
-          <Button variant="outline" onClick={() => setResults(null)}>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <Button 
+            variant="outline" 
+            onClick={() => setResults(null)}
+            className="mb-6"
+          >
             ← New Analysis
           </Button>
         </div>
-        <V3AnalysisDisplay results={results} />
+        <ModernV3Analysis results={results} />
       </div>
     );
   }
   
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-3xl">Advanced Multi-Agent Analysis</CardTitle>
-          <CardDescription>
-            Run comprehensive code analysis using specialized AI agents
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+      <div className="max-w-4xl mx-auto px-6 py-12">
+        <Card className="border-2 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-t-lg">
+            <CardTitle className="text-3xl font-bold">Advanced Multi-Agent Analysis</CardTitle>
+            <CardDescription className="text-slate-300 text-lg">
+              Run comprehensive code analysis using specialized AI agents
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-6">
           {/* Repository Input */}
           <div className="space-y-2">
             <Label htmlFor="repo-url">Repository URL</Label>
@@ -211,6 +216,7 @@ export default function V3AnalysisPage() {
           </Button>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
