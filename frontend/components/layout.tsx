@@ -63,6 +63,13 @@ export function Header() {
                   <FileText className="w-4 h-4" />
                   Runs
                 </Link>
+                <Link
+                  href="/v3-analysis"
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition"
+                >
+                  <Code2 className="w-4 h-4" />
+                  V3 Analysis
+                </Link>
               </nav>
             )}
           </div>
@@ -124,6 +131,12 @@ export function Header() {
                   className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition rounded"
                 >
                   Runs
+                </Link>
+                <Link
+                  href="/v3-analysis"
+                  className="block px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition rounded font-medium"
+                >
+                  V3 Analysis
                 </Link>
                 <button
                   onClick={handleLogout}

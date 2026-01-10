@@ -6,7 +6,7 @@ function Badge({
   className,
   variant = "default",
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & {
+}: React.HTMLAttributes<HTMLSpanElement> & {
   variant?:
     | "default"
     | "secondary"
@@ -27,7 +27,7 @@ function Badge({
   }
 
   return (
-    <div
+    <span
       className={cn(
         "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 dark:focus:ring-slate-300",
         variants[variant],

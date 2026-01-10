@@ -11,7 +11,7 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:800
 
 // Create axios instance
 export const apiClient = axios.create({
-  baseURL: `${API_BASE}/api/v1`,
+  baseURL: `${API_BASE}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
