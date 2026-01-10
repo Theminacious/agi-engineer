@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { EnterpriseMetrics } from '@/components/EnterpriseMetrics';
 import { 
   Shield, 
   Zap, 
@@ -13,7 +15,14 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Info
+  Info,
+  Download,
+  TrendingUp,
+  TrendingDown,
+  Clock,
+  Target,
+  DollarSign,
+  Users
 } from 'lucide-react';
 
 interface AgentIssue {
@@ -402,57 +411,184 @@ export default function V3AnalysisDisplay({ results }: { results: V3AnalysisResu
                     r.metrics?.documentation_score ||
                     0;
       return sum + score;
-    }, 0) / agentResultsArray.length
+    }, 0) / (agentResultsArray.length || 1)
   );
   
+  // Calculate technical debt (hours to fix)
+  const technicalDebt = Math.round(
+    criticalIssues * 4 + highIssues * 2 + mediumIssues * 0.5
+  );
+  
+  // Calculate risk score (0-100, higher = more risk)
+  const riskScore = Math.min(100, 
+    criticalIssues * 25 + highIssues * 10 + mediumIssues * 5
+  );
+  
+  // Industry benchmark comparison
+  const industryBenchmark: {
+    score: number;
+    issues: number;
+    comparison: 'above' | 'average' | 'below';
+  } = {
+    score: 75,
+    issues: 8,
+    comparison: overallScore >= 75 ? 'above' : overallScore >= 65 ? 'average' : 'below'
+  };
+  
   const getHealthStatus = () => {
-    if (criticalIssues > 0) return { text: 'Critical Issues', color: 'text-red-600', bg: 'bg-red-50' };
-    if (highIssues > 5) return { text: 'Needs Attention', color: 'text-orange-600', bg: 'bg-orange-50' };
-    if (totalIssues > 10) return { text: 'Fair', color: 'text-yellow-600', bg: 'bg-yellow-50' };
-    if (totalIssues > 0) return { text: 'Good', color: 'text-blue-600', bg: 'bg-blue-50' };
-    return { text: 'Excellent', color: 'text-green-600', bg: 'bg-green-50' };
+    if (criticalIssues > 0) return { text: 'Critical Issues', color: 'text-red-600', bg: 'bg-red-50', icon: XCircle };
+    if (highIssues > 5) return { text: 'Needs Attention', color: 'text-orange-600', bg: 'bg-orange-50', icon: AlertTriangle };
+    if (totalIssues > 10) return { text: 'Fair', color: 'text-yellow-600', bg: 'bg-yellow-50', icon: Info };
+    if (totalIssues > 0) return { text: 'Good', color: 'text-blue-600', bg: 'bg-blue-50', icon: CheckCircle2 };
+    return { text: 'Excellent', color: 'text-green-600', bg: 'bg-green-50', icon: CheckCircle2 };
   };
   
   const healthStatus = getHealthStatus();
   
+  // Export functionality
+  const exportToJSON = () => {
+    const dataStr = JSON.stringify(results, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `analysis-${results.repository.name.replace('/', '-')}-${Date.now()}.json`;
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+  
+  const exportToCSV = () => {
+    const csvRows = [
+      ['File', 'Line', 'Severity', 'Agent', 'Title', 'Description', 'Recommendation'].join(',')
+    ];
+    
+    agentResultsArray.forEach(agent => {
+      agent.issues.forEach((issue: AgentIssue) => {
+        csvRows.push([
+          `"${issue.file_path}"`,
+          issue.line_number,
+          issue.severity,
+          agent.agent_type,
+          `"${issue.title}"`,
+          `"${issue.description}"`,
+          `"${issue.recommendation}"`
+        ].join(','));
+      });
+    });
+    
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analysis-${results.repository.name.replace('/', '-')}-${Date.now()}.csv`;
+    link.click();
+  };
+  
   return (
     <div className="space-y-6">
-      {/* Repository Header */}
-      <Card>
+      {/* Executive Summary Card */}
+      <Card className="border-2">
         <CardHeader>
           <div className="flex items-start justify-between">
-            <div>
-              <CardTitle className="text-2xl">Advanced Multi-Agent Analysis</CardTitle>
-              <CardDescription>
-                Repository: {results.repository.name} • Branch: {results.repository.branch}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <CardTitle className="text-3xl">Code Quality Report</CardTitle>
+                <Badge className={`${healthStatus.bg} ${healthStatus.color} border-0 text-sm px-4 py-2`}>
+                  {healthStatus.icon && <healthStatus.icon className="w-4 h-4 mr-1 inline" />}
+                  {healthStatus.text}
+                </Badge>
+              </div>
+              <CardDescription className="text-base">
+                Repository: <span className="font-semibold">{results.repository.name}</span> • Branch: <span className="font-semibold">{results.repository.branch}</span>
               </CardDescription>
             </div>
-            <Badge className={`${healthStatus.bg} ${healthStatus.color} border-0 text-sm px-4 py-2`}>
-              {healthStatus.text}
-            </Badge>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={exportToJSON}>
+                <Download className="w-4 h-4 mr-2" />
+                JSON
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportToCSV}>
+                <Download className="w-4 h-4 mr-2" />
+                CSV
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Overall Score */}
-          {overallScore > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-700">Overall Code Quality</span>
-                <span className="text-3xl font-bold text-blue-600">{overallScore}/100</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
-                  style={{ width: `${overallScore}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-600 mt-2">
-                Average quality score across all {agentResultsArray.length} specialized agents
-              </p>
-            </div>
-          )}
+          {/* Key Metrics Row */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Overall Score */}
+            <Card className="border-2 border-blue-200 bg-blue-50">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-blue-600 mb-2">{overallScore}</div>
+                  <p className="text-sm font-medium text-gray-700">Overall Quality Score</p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    {industryBenchmark.comparison === 'above' ? (
+                      <><TrendingUp className="w-4 h-4 text-green-600" /><span className="text-xs text-green-600 font-semibold">Above Industry Avg</span></>
+                    ) : industryBenchmark.comparison === 'average' ? (
+                      <><Target className="w-4 h-4 text-yellow-600" /><span className="text-xs text-yellow-600 font-semibold">Industry Average</span></>
+                    ) : (
+                      <><TrendingDown className="w-4 h-4 text-red-600" /><span className="text-xs text-red-600 font-semibold">Below Industry Avg</span></>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Risk Score */}
+            <Card className="border-2 border-orange-200 bg-orange-50">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-orange-600 mb-2">{riskScore}</div>
+                  <p className="text-sm font-medium text-gray-700">Risk Score</p>
+                  <div className="mt-3">
+                    <div className="w-full bg-orange-200 rounded-full h-2">
+                      <div 
+                        className="h-full bg-orange-600 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, riskScore)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1 font-semibold">{riskScore < 30 ? '🟢 Low Risk' : riskScore < 60 ? '🟡 Moderate Risk' : '🔴 High Risk'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Technical Debt */}
+            <Card className="border-2 border-purple-200 bg-purple-50">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Clock className="w-6 h-6 text-purple-600" />
+                    <div className="text-5xl font-bold text-purple-600">{technicalDebt}</div>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">Hours to Fix</p>
+                  <p className="text-xs text-gray-600 mt-3">
+                    Estimated technical debt
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Cost Impact */}
+            <Card className="border-2 border-green-200 bg-green-50">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <DollarSign className="w-6 h-6 text-green-600" />
+                    <div className="text-4xl font-bold text-green-600">${Math.round(technicalDebt * 75).toLocaleString()}</div>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">Cost Impact</p>
+                  <p className="text-xs text-gray-600 mt-3">
+                    @ $75/hour engineering cost
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
           
-          {/* Statistics Grid */}
+          {/* Severity Breakdown Grid */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
               <p className="text-3xl font-bold text-gray-900">{totalIssues}</p>
@@ -488,6 +624,18 @@ export default function V3AnalysisDisplay({ results }: { results: V3AnalysisResu
           )}
         </CardContent>
       </Card>
+      
+      {/* Enterprise Metrics & Business Impact */}
+      <EnterpriseMetrics 
+        overallScore={overallScore}
+        totalIssues={totalIssues}
+        criticalIssues={criticalIssues}
+        highIssues={highIssues}
+        mediumIssues={mediumIssues}
+        technicalDebt={technicalDebt}
+        riskScore={riskScore}
+        industryBenchmark={industryBenchmark}
+      />
       
       {/* Agent Results Tabs */}
       <Tabs value={selectedAgent} onValueChange={setSelectedAgent}>
