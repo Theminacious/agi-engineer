@@ -2,15 +2,14 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle } from 'lucide-react';
-import { ModernV3Analysis } from '@/components/ModernV3Analysis';
+import { PiecesStyleAnalysis } from '@/components/PiecesStyleAnalysis';
 import { apiClient } from '@/lib/api';
+import { Header } from '@/components/layout';
 
 interface AgentOption {
   id: string;
@@ -100,123 +99,116 @@ export default function V3AnalysisPage() {
     }
   };
   
-  if (results) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <Button 
-            variant="outline" 
-            onClick={() => setResults(null)}
-            className="mb-6"
-          >
-            ← New Analysis
-          </Button>
-        </div>
-        <ModernV3Analysis results={results} />
-      </div>
-    );
-  }
-  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <Card className="border-2 shadow-xl">
-          <CardHeader className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-t-lg">
-            <CardTitle className="text-3xl font-bold">Advanced Multi-Agent Analysis</CardTitle>
-            <CardDescription className="text-slate-300 text-lg">
-              Run comprehensive code analysis using specialized AI agents
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-          {/* Repository Input */}
-          <div className="space-y-2">
-            <Label htmlFor="repo-url">Repository URL</Label>
-            <Input
-              id="repo-url"
-              placeholder="https://github.com/owner/repo"
-              value={repoUrl}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRepoUrl(e.target.value)}
-            />
-          </div>
-          
-          {/* Branch Input */}
-          <div className="space-y-2">
-            <Label htmlFor="branch">Branch</Label>
-            <Input
-              id="branch"
-              placeholder="main"
-              value={branch}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBranch(e.target.value)}
-            />
-          </div>
-          
-          {/* Agent Selection */}
-          <div className="space-y-4">
-            <Label>Select Agents</Label>
-            <div className="space-y-3">
-              {agents.map((agent) => (
-                <div key={agent.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                  <Checkbox
-                    id={agent.id}
-                    checked={agent.enabled}
-                    onCheckedChange={() => toggleAgent(agent.id)}
+    <>
+      <Header />
+      <main className="min-h-screen bg-background">
+        {/* Render Results or Form */}
+        {results ? (
+          <PiecesStyleAnalysis results={results} onBack={() => setResults(null)} />
+        ) : (
+          <div className="px-6 py-6">
+            <div className="max-w-3xl mx-auto">
+              {/* Header */}
+              <div className="mb-4">
+                <h1 className="text-lg font-medium text-foreground mb-1">Advanced Multi-Agent Analysis</h1>
+                <p className="text-xs text-muted-foreground">Run comprehensive code analysis using specialized AI agents</p>
+              </div>
+
+              {/* Form */}
+              <div className="bg-card border border-border rounded p-4 space-y-4">
+                {/* Repository Input */}
+                <div className="space-y-1">
+                  <Label htmlFor="repo-url" className="text-xs text-muted-foreground">Repository URL</Label>
+                  <Input
+                    id="repo-url"
+                    placeholder="https://github.com/owner/repo"
+                    value={repoUrl}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRepoUrl(e.target.value)}
+                    className="bg-muted border-border text-foreground"
                   />
-                  <div className="flex-1">
-                    <label
-                      htmlFor={agent.id}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {agent.name}
-                    </label>
-                    <p className="text-sm text-gray-500 mt-1">{agent.description}</p>
+                </div>
+                
+                {/* Branch Input */}
+                <div className="space-y-1">
+                  <Label htmlFor="branch" className="text-xs text-muted-foreground">Branch</Label>
+                  <Input
+                    id="branch"
+                    placeholder="main"
+                    value={branch}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBranch(e.target.value)}
+                    className="bg-muted border-border text-foreground"
+                  />
+                </div>
+          
+                {/* Agent Selection */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Select Agents</Label>
+                  <div className="space-y-1">
+                    {agents.map((agent) => (
+                      <div key={agent.id} className="flex items-start space-x-3 p-2 border border-border rounded hover:bg-muted/20 transition-colors">
+                        <Checkbox
+                          id={agent.id}
+                          checked={agent.enabled}
+                          onCheckedChange={() => toggleAgent(agent.id)}
+                        />
+                        <div className="flex-1">
+                          <label
+                            htmlFor={agent.id}
+                            className="text-xs font-medium text-foreground cursor-pointer"
+                          >
+                            {agent.name}
+                          </label>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{agent.description}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+          
+                {/* Parallel Execution */}
+                <div className="flex items-center justify-between p-3 border border-border rounded">
+                  <div>
+                    <Label htmlFor="parallel" className="text-xs font-medium text-foreground">Parallel Execution</Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Run all agents simultaneously for faster analysis
+                    </p>
+                  </div>
+                  <Switch
+                    id="parallel"
+                    checked={parallel}
+                    onCheckedChange={setParallel}
+                  />
+                </div>
+          
+                {/* Error Display */}
+                {error && (
+                  <div className="bg-card border border-destructive rounded p-3 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-destructive">{error}</p>
+                  </div>
+                )}
+                
+                {/* Submit Button */}
+                <Button
+                  onClick={runAnalysis}
+                  disabled={loading}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      Running Analysis...
+                    </>
+                  ) : (
+                    'Run Advanced Analysis'
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
-          
-          {/* Parallel Execution */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
-              <Label htmlFor="parallel">Parallel Execution</Label>
-              <p className="text-sm text-gray-500">
-                Run all agents simultaneously for faster analysis
-              </p>
-            </div>
-            <Switch
-              id="parallel"
-              checked={parallel}
-              onCheckedChange={setParallel}
-            />
-          </div>
-          
-          {/* Error Display */}
-          {error && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          {/* Submit Button */}
-          <Button
-            onClick={runAnalysis}
-            disabled={loading}
-            className="w-full"
-            size="lg"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Running Analysis...
-              </>
-            ) : (
-              'Run Advanced Analysis'
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-      </div>
-    </div>
+        )}
+      </main>
+    </>
   );
 }
