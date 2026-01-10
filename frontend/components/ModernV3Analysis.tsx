@@ -334,10 +334,52 @@ export function ModernV3Analysis({ results }: { results: V3AnalysisResults }) {
 
                 {isExpanded && (
                   <CardContent className="pt-6">
-                    {/* Summary */}
+                    {/* Metrics Summary Bar */}
+                    {result.metrics && Object.keys(result.metrics).length > 0 && (
+                      <div className="mb-6 p-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl border border-slate-200">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {Object.entries(result.metrics).map(([key, value]) => {
+                            if (key === 'execution_time_ms') return null;
+                            // Skip objects and complex types, only show primitive values
+                            if (typeof value === 'object' && value !== null) return null;
+                            
+                            return (
+                              <div key={key} className="text-center">
+                                <div className="text-2xl font-bold text-slate-900">
+                                  {typeof value === 'number' ? Math.round(value) : String(value)}
+                                </div>
+                                <div className="text-xs text-slate-600 mt-1">
+                                  {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Summary with Icon */}
                     {result.summary && (
-                      <div className="mb-6 p-4 bg-slate-50 rounded-lg">
-                        <p className="text-sm text-slate-700">{result.summary}</p>
+                      <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="font-semibold text-blue-900 mb-1">Analysis Summary</h4>
+                            <p className="text-sm text-blue-800">{result.summary}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Issues Stats */}
+                    {issueCount > 0 && (
+                      <div className="mb-4 p-4 bg-orange-50 border-l-4 border-orange-400 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-5 h-5 text-orange-600" />
+                          <span className="font-semibold text-orange-900">
+                            ⚠️ {issueCount} {issueCount === 1 ? 'issue' : 'issues'} detected
+                          </span>
+                        </div>
                       </div>
                     )}
 

@@ -4,7 +4,60 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui'
-import { LogOut, Home, BarChart3, FileText, Zap, Code2 } from 'lucide-react'
+import { 
+  LogOut, 
+  Home, 
+  BarChart3, 
+  FileText, 
+  Zap, 
+  ChevronDown, 
+  Settings, 
+  HelpCircle,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  Info,
+  Layers
+} from 'lucide-react'
+
+// --- CUSTOM "NEURAL CONSTRUCT" LOGO ---
+const AGILogo = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    {/* The Core: A diamond representing the 'Singularity' or AI Core */}
+    <path 
+      d="M12 8L15 12L12 16L9 12L12 8Z" 
+      fill="currentColor" 
+      className="text-white"
+    />
+    
+    {/* The Shell: Abstract brackets representing Code/Engineering */}
+    {/* Left Bracket */}
+    <path 
+      d="M7 6L3 12L7 18" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className="text-gray-400"
+    />
+    {/* Right Bracket */}
+    <path 
+      d="M17 6L21 12L17 18" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className="text-gray-400"
+    />
+    
+    {/* Connection Lines: Tying logic to the core */}
+    <path d="M7 12H9" stroke="currentColor" strokeWidth="2" className="text-gray-500/50" />
+    <path d="M15 12H17" stroke="currentColor" strokeWidth="2" className="text-gray-500/50" />
+  </svg>
+)
+
+// --- SIDEBAR COMPONENT ---
 
 export function Header() {
   const router = useRouter()
@@ -15,7 +68,12 @@ export function Header() {
     const token = localStorage.getItem('jwt_token')
     const savedUser = localStorage.getItem('user')
     if (token && savedUser) {
-      setUser(savedUser)
+      try {
+        const parsed = JSON.parse(savedUser)
+        setUser(parsed.email || parsed) 
+      } catch {
+        setUser(savedUser)
+      }
     }
   }, [])
 
@@ -31,30 +89,35 @@ export function Header() {
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { href: '/runs', label: 'Runs', icon: FileText },
-    { href: '/v3-analysis', label: 'V3 Analysis', icon: Zap },
+    { href: '/runs', label: 'Runs & Logs', icon: Layers },
+    { href: '/v3-analysis', label: 'AGI Engine', icon: Zap },
   ]
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-60 bg-card border-r border-border flex flex-col z-40">
-      {/* Logo Section */}
-      <div className="h-14 px-4 flex items-center border-b border-border">
-        <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition">
-          <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
-            <Code2 className="w-4 h-4 text-primary-foreground" />
+    <aside className="fixed left-0 top-0 bottom-0 z-50 w-[260px] flex flex-col bg-[#050505] border-r border-[#1F1F1F]">
+      
+      {/* 1. Header: Workspace Dropdown (Cursor Style) */}
+      <div className="px-3 pt-4 pb-2">
+        <button className="w-full flex items-center justify-between p-2 rounded-md hover:bg-[#1A1A1A] transition-colors group">
+          <div className="flex items-center gap-2.5">
+             {/* New Premium Logo */}
+             <div className="w-6 h-6 flex items-center justify-center">
+                <AGILogo className="w-6 h-6" />
+             </div>
+             <span className="text-[13px] font-semibold text-white tracking-tight">AGI Engineer</span>
           </div>
-          <span className="text-sm font-semibold text-foreground truncate">
-            AGI Engineer
-          </span>
-        </Link>
+          <ChevronDown className="w-3.5 h-3.5 text-gray-500 group-hover:text-white transition-colors" />
+        </button>
       </div>
 
-      {/* Navigation Items */}
-      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+      {/* 2. Navigation (Compact & Minimal) */}
+      <nav className="flex-1 px-2 py-4 space-y-0.5">
+        <div className="px-2 mb-2">
+          <p className="text-[10px] font-medium text-[#444] uppercase tracking-wider">Workspace</p>
+        </div>
+
         {navItems.map((item) => {
           const Icon = item.icon
           const active = isActive(item.href)
@@ -63,84 +126,112 @@ export function Header() {
               key={item.href}
               href={item.href}
               className={`
-                flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium
-                transition-colors border-l-2
-                ${active
-                  ? 'bg-muted border-l-primary text-primary'
-                  : 'border-l-transparent text-muted-foreground hover:text-foreground hover:bg-muted'
+                flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium transition-all group
+                ${active 
+                  ? 'bg-[#1A1A1A] text-white' 
+                  : 'text-[#888] hover:text-white hover:bg-[#111]'
                 }
               `}
             >
-              <Icon className="w-4 h-4 flex-shrink-0" />
+              <Icon className={`w-4 h-4 ${active ? 'text-white' : 'text-[#666] group-hover:text-[#999]'}`} />
               <span className="truncate">{item.label}</span>
+              
+              {/* Subtle Active Dot */}
+              {active && <div className="ml-auto w-1 h-1 rounded-full bg-blue-500/80 shadow-[0_0_8px_rgba(59,130,246,0.8)]" />}
             </Link>
           )
         })}
+
+        <div className="mt-6 px-2 mb-2">
+          <p className="text-[10px] font-medium text-[#444] uppercase tracking-wider">Preferences</p>
+        </div>
+        <button className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium text-[#888] hover:text-white hover:bg-[#111] transition-colors">
+            <Settings className="w-4 h-4 text-[#666]" />
+            <span>Settings</span>
+        </button>
+        <button className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium text-[#888] hover:text-white hover:bg-[#111] transition-colors">
+            <HelpCircle className="w-4 h-4 text-[#666]" />
+            <span>Documentation</span>
+        </button>
       </nav>
 
-      {/* User Section */}
-      <div className="border-t border-border px-2 py-4 space-y-3">
-        <div className="px-3 py-2 text-xs">
-          <p className="text-muted-foreground truncate">{user}</p>
+      {/* 3. Footer: User Profile (Pieces Style - Minimal) */}
+      <div className="p-3 border-t border-[#1F1F1F]">
+        <div className="flex items-center gap-3 p-2 rounded-md hover:bg-[#111] transition-colors cursor-default">
+          <div className="w-6 h-6 rounded bg-gradient-to-b from-[#333] to-[#222] border border-[#333] flex items-center justify-center shrink-0">
+             <span className="text-[10px] font-bold text-gray-300">
+                {user ? user.charAt(0).toUpperCase() : 'U'}
+             </span>
+          </div>
+          
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <p className="text-[12px] font-medium text-gray-200 truncate leading-none mb-0.5">{user?.split('@')[0]}</p>
+            <p className="text-[10px] text-gray-600 truncate leading-none">Free Plan</p>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="text-gray-600 hover:text-gray-300 transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
-        <Button
-          onClick={handleLogout}
-          variant="ghost"
-          className="w-full justify-start text-muted-foreground hover:text-foreground text-xs"
-          size="sm"
-        >
-          <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
-          Logout
-        </Button>
       </div>
     </aside>
   )
 }
 
+// --- UTILITY COMPONENTS (Badges & Alerts) ---
+
 export function StatusBadge({ status }: { status: string }) {
-  const colorMap: Record<string, { text: string }> = {
-    pending: { text: 'text-muted-foreground' },
-    in_progress: { text: 'text-primary' },
-    completed: { text: 'text-foreground' },
-    failed: { text: 'text-destructive' },
+  const styles: Record<string, string> = {
+    pending: 'bg-[#1A1A1A] text-gray-400 border-[#333]',
+    in_progress: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    completed: 'bg-green-500/10 text-green-400 border-green-500/20',
+    failed: 'bg-red-500/10 text-red-400 border-red-500/20',
+  }
+  const icons: Record<string, any> = {
+    pending: Clock,
+    in_progress: Loader2,
+    completed: CheckCircle2,
+    failed: AlertCircle
   }
 
-  const labelMap: Record<string, string> = {
-    pending: 'Pending',
-    in_progress: 'In Progress',
-    completed: 'Completed',
-    failed: 'Failed',
-  }
-
-  const colors = colorMap[status] || colorMap.pending
+  const style = styles[status] || styles.pending
+  const Icon = icons[status] || Clock
+  const label = status.replace('_', ' ')
 
   return (
-    <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-muted border border-border ${colors.text}`}>
-      <span>{labelMap[status] || status}</span>
+    <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border ${style}`}>
+      <Icon className={`w-3 h-3 ${status === 'in_progress' ? 'animate-spin' : ''}`} />
+      <span className="capitalize">{label}</span>
     </div>
   )
 }
 
 export function CategoryBadge({ category }: { category: string }) {
-  const labelMap: Record<string, string> = {
-    safe: 'Safe',
-    review: 'Review',
-    suggestion: 'Suggestion',
+  // Monochromatic/Technical look
+  const styles: Record<string, string> = {
+    safe: 'bg-[#111] text-gray-300 border-[#333]',
+    review: 'bg-[#1A1A00] text-yellow-500/80 border-yellow-900/30',
+    suggestion: 'bg-[#00111A] text-blue-400/80 border-blue-900/30',
   }
+  const style = styles[category.toLowerCase()] || 'bg-[#111] text-gray-400 border-[#333]'
 
   return (
-    <div className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-muted border border-border text-foreground">
-      <span>{labelMap[category] || category}</span>
+    <div className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider border ${style}`}>
+      {category}
     </div>
   )
 }
 
 export function Loading() {
   return (
-    <div className="flex justify-center items-center p-12">
-      <div className="flex flex-col items-center gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-muted border-t-primary"></div>
-        <p className="text-muted-foreground text-sm">Loading...</p>
+    <div className="flex h-32 w-full items-center justify-center rounded-lg border border-dashed border-[#222] bg-[#0A0A0A]">
+      <div className="flex flex-col items-center gap-2">
+         <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
+         <p className="text-[11px] font-medium text-gray-600">Syncing...</p>
       </div>
     </div>
   )
@@ -148,30 +239,31 @@ export function Loading() {
 
 export function ErrorAlert({ message }: { message: string }) {
   return (
-    <div className="bg-card border border-destructive text-destructive px-4 py-3 rounded">
-      <div className="flex items-center gap-2">
-        <span>{message}</span>
-      </div>
+    <div className="flex items-center gap-3 rounded-md border border-red-900/30 bg-red-950/10 p-3">
+      <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+      <p className="text-xs text-red-300">{message}</p>
     </div>
   )
 }
 
 export function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-center py-8">
-      <p className="text-muted-foreground text-sm">{message}</p>
+    <div className="flex flex-col items-center justify-center py-10 rounded-lg border border-dashed border-[#222] bg-[#0A0A0A]">
+      <div className="h-8 w-8 rounded bg-[#111] flex items-center justify-center mb-3 text-gray-600">
+        <FileText className="w-4 h-4" />
+      </div>
+      <p className="text-xs text-gray-500">{message}</p>
     </div>
   )
 }
 
 export function InfoAlert({ title, message }: { title: string; message: string }) {
   return (
-    <div className="bg-card border border-primary rounded p-4">
-      <div className="flex items-start gap-3">
-        <div>
-          <h3 className="font-medium text-foreground text-sm">{title}</h3>
-          <p className="text-xs text-muted-foreground mt-1">{message}</p>
-        </div>
+    <div className="flex items-start gap-3 rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+      <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+      <div>
+        <h3 className="text-sm font-bold text-blue-400 mb-1">{title}</h3>
+        <p className="text-xs text-blue-300/70 leading-relaxed">{message}</p>
       </div>
     </div>
   )
