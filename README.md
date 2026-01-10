@@ -1,8 +1,10 @@
 # 🤖 AGI Engineer V2 - AI-Powered Code Analysis Platform
 
-> **What is this?** A complete full-stack application for automated code quality analysis powered by AI. Analyzes GitHub repositories, finds issues, explains them, and suggests fixes.
+> **What is this?** A complete full-stack application for automated code quality analysis powered by AI. Analyzes GitHub repositories, finds issues, explains them, and **automatically creates PRs with fixes**.
 
-Think of it like **GitHub Actions + CodeClimate + ChatGPT** 🚀 — all in one platform.
+Think of it like **GitHub Actions + CodeClimate + ChatGPT + Auto-Fix** 🚀 — all in one platform.
+
+**NEW**: ⚡ **2-3x Faster Analysis** with parallel processing + 🔧 **One-Click PR Creation** for automatic fixes!
 
 ---
 
@@ -15,18 +17,36 @@ Manual code review = Time-consuming
 ❌ Hunt for unused imports one by one
 ❌ Fix formatting issues by hand
 ❌ Worry about breaking things
+❌ Create PRs manually
 ❌ Days of tedious work
 ```
 
 ### After AGI Engineer ✅
 ```
 Automated with verification = Fast & Safe
-✅ AI finds issues automatically
+✅ AI finds issues automatically (2-3x faster!)
 ✅ Shows why each issue matters
 ✅ Fixes them instantly (with safety checks)
 ✅ Tests for regressions
+✅ Creates PR with one click
 ✅ Done in seconds
 ```
+
+---
+
+## ⚡ What's New in Latest Version
+
+### Performance Boost (2-3x Faster)
+- ✅ **Parallel Analysis**: Ruff and ESLint run simultaneously
+- ✅ **Batch Operations**: 3-4x faster database inserts
+- ✅ **Optimized I/O**: Reduced file operations
+- 📊 **Results**: 120s → 50s for large repos
+
+### PR Creation Feature
+- 🔧 **One-Click PR Creation**: Create PRs directly from dashboard
+- 📝 **Customizable**: Choose branch name, PR title, and description
+- 🤖 **Automatic**: Applies all fixes and pushes to GitHub
+- 🔗 **GitHub Integration**: Uses GitHub API for seamless PR creation
 
 ---
 
@@ -37,40 +57,70 @@ Automated with verification = Fast & Safe
 # Clone the project
 git clone https://github.com/Theminacious/agi-engineer.git
 cd agi-engineer
+### Step 2: Configure (Optional but Recommended)
 
-# Create virtual environment (isolated Python space)
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Step 2: Get Free AI (Groq)
-Groq gives you **FREE** AI inference - no credit card needed!
-
+#### For Analysis Only
 ```bash
-# Option A: Set environment variable
-export GROQ_API_KEY=gsk_YOUR_KEY_HERE
-
-# Option B: Create .env file (easier)
-echo "GROQ_API_KEY=gsk_YOUR_KEY_HERE" > .env
-source .env
+# Get free Groq API key: https://console.groq.com/
+cp .env.example .env
+# Edit .env and add:
+GROQ_API_KEY=gsk_YOUR_KEY_HERE
 ```
 
-Get your free key: https://console.groq.com/
+#### For PR Creation (Automatic Fixes)
+```bash
+# Get GitHub token: https://github.com/settings/tokens
+# Required scope: repo (Full control of private repositories)
+# Add to .env:
+GITHUB_TOKEN=ghp_YOUR_TOKEN_HERE
+```
 
 ### Step 3: Run It!
+
+#### Backend (FastAPI)
 ```bash
-# Just analyze (no changes)
-python3 agi_engineer_v3.py /path/to/your/python/project --ai --smart --analyze-only
-
-# Analyze and fix
-python3 agi_engineer_v3.py /path/to/your/python/project --smart
-
-# Or fix a GitHub repo directly
-python3 agi_engineer_v3.py https://github.com/user/repo --smart --pr
+cd backend
+source ../venv/bin/activate
+uvicorn app.main:app --reload --port 8000
 ```
+
+#### Frontend (Next.js)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+#### Access Dashboard
+```
+http://localhost:3000
+```
+
+---
+
+## 🎯 Example Workflow
+
+### 1. Import Repository (Dashboard)
+- Click "Import Repository"
+- Enter: `https://github.com/yourusername/yourrepo.git`
+- Click "Import and Analyze"
+- ⚡ Analysis completes in 20-50s (2-3x faster!)
+
+### 2. Review Results
+- See fixed vs unfixed issues
+- Check fix success rate
+- View detailed issue breakdown
+
+### 3. Create Pull Request
+- Click "Create PR (X fixes)" button
+- Customize PR details (optional)
+- Click "Create PR"
+- 🤖 PR created automatically!
+
+### 4. Merge on GitHub
+- Review the pull request
+- All fixes applied and tested
+- Merge when ready ✨
 
 ---
 
@@ -79,19 +129,19 @@ python3 agi_engineer_v3.py https://github.com/user/repo --smart --pr
 ### The Process Flow
 
 ```
-Your Python Code
+Your Code (Python/JavaScript)
       ↓
-   [Ruff Scanner] ← Finds 36 issues
+[Ruff + ESLint] ← Run in parallel (2-3x faster!)
       ↓
-[AI Analyzer] ← Understands what's wrong (uses Groq)
+[AI Analyzer] ← Understands issues (uses Groq)
       ↓
-[Rule Classifier] ← Sorts into: Safe, Review, Suggestions
+[Rule Classifier] ← Sorts: Safe, Review, Suggestions
       ↓
 [Safety Checker] ← Tests if fixes break anything
       ↓
 [Auto-Fixer] ← Applies fixes to code
       ↓
-[Git Integration] ← Creates PR for review
+[PR Creator] ← Creates GitHub PR (one-click!)
       ↓
 Clean, Fixed Code ✨
 ```

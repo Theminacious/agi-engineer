@@ -50,6 +50,13 @@ export function Header() {
                   Dashboard
                 </Link>
                 <Link
+                  href="/analytics"
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition"
+                >
+                  <FileText className="w-4 h-4" />
+                  Analytics
+                </Link>
+                <Link
                   href="/runs"
                   className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition"
                 >
@@ -105,6 +112,12 @@ export function Header() {
                   className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition rounded"
                 >
                   Dashboard
+                </Link>
+                <Link
+                  href="/analytics"
+                  className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition rounded"
+                >
+                  Analytics
                 </Link>
                 <Link
                   href="/runs"

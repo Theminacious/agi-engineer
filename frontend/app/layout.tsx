@@ -2,8 +2,8 @@ import type { Metadata } from "next"
 import "../globals.css"
 
 export const metadata: Metadata = {
-  title: "AGI Engineer - Code Quality Dashboard",
-  description: "GitHub App for automated code quality analysis and fixes",
+  title: "AGI Engineer - AI-Powered Code Analysis",
+  description: "Automatically analyze, explain, and fix code issues with AI - Like having a team of expert engineers",
 }
 
 export default function RootLayout({

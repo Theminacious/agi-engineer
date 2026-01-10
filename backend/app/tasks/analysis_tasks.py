@@ -6,13 +6,15 @@ from datetime import datetime
 import subprocess
 import json
 import asyncio
+import sys
+import os
 from pathlib import Path
 from typing import Optional
 
 from .celery_app import celery_app
 from app.db import SessionLocal
 from app.models.analysis_run import AnalysisRun, RunStatus
-from app.models.analysis_result import AnalysisResult
+from app.models.analysis_result import AnalysisResult, IssueCategory
 from app.config import settings
 
 
@@ -92,18 +94,23 @@ def run_code_analysis(self, run_id: int) -> dict:
         # Store results in database
         total_issues = 0
         for result_data in results:
+            category_value = result_data.get("category") or IssueCategory.SUGGESTION
+            if isinstance(category_value, str):
+                category_value = IssueCategory(category_value)
+
             result = AnalysisResult(
                 run_id=run.id,
-                rule_id=result_data.get("rule_id"),
-                code=result_data.get("code"),
-                name=result_data.get("name"),
-                category=result_data.get("category"),
-                severity=result_data.get("severity"),
-                message=result_data.get("message"),
-                file_path=result_data.get("file_path"),
-                line_number=result_data.get("line_number"),
-                code_snippet=result_data.get("code_snippet"),
+                file_path=result_data.get("file_path", ""),
+                line_number=result_data.get("line_number", 0),
+                issue_code=result_data.get("issue_code", ""),
+                issue_name=result_data.get("issue_name", result_data.get("issue_code", "")),
+                category=category_value,
+                severity=result_data.get("severity", "warning"),
+                message=result_data.get("message", ""),
                 suggestion=result_data.get("suggestion"),
+                before_code=result_data.get("before_code"),
+                after_code=result_data.get("after_code"),
+                is_fixed=0,
             )
             db.add(result)
             total_issues += 1
@@ -213,44 +220,68 @@ def clone_repository(full_name: str, branch: str, token: str) -> Path:
 def run_agi_engineer_analysis(repo_path: Path, branch: str, commit_sha: Optional[str]) -> list[dict]:
     """Run AGI Engineer analysis on repository.
     
-    Args:
-        repo_path: Path to repository
-        branch: Branch name
-        commit_sha: Commit SHA (optional)
-        
-    Returns:
-        List of analysis results
+    Currently uses Ruff scan to produce issue list in the expected schema.
     """
-    # Run the AGI Engineer analysis
-    # This would integrate with the existing agi_engineer_v3.py or v2.py
-    cmd = [
-        "python",
-        str(Path(__file__).parent.parent.parent / "agi_engineer_v3.py"),
-        "--repo-path", str(repo_path),
-        "--branch", branch,
-        "--output-format", "json"
-    ]
-    
-    if commit_sha:
-        cmd.extend(["--commit", commit_sha])
-    
+    repo_root = Path(repo_path).resolve()
+    project_root = Path(__file__).resolve().parents[3]
+    agent_dir = project_root / "agent"
+
+    # Ensure agent modules are importable
+    if str(agent_dir) not in sys.path:
+        sys.path.insert(0, str(agent_dir))
+
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=1800  # 30 minutes max
-        )
-        
-        # Parse JSON output
-        if result.stdout:
-            return json.loads(result.stdout)
-        return []
-        
-    except subprocess.TimeoutExpired:
-        raise Exception("Analysis timed out after 30 minutes")
-    except subprocess.CalledProcessError as e:
-        raise Exception(f"Analysis failed: {e.stderr}")
-    except json.JSONDecodeError as e:
-        raise Exception(f"Failed to parse analysis output: {e}")
+        from analyze import run_ruff
+        from rule_classifier import RuleClassifier, RuleCategory
+        from fix_orchestrator import FixOrchestrator
+    except Exception as exc:  # pragma: no cover - defensive guard
+        raise Exception(f"Failed to load analyzer: {exc}")
+
+    classifier = RuleClassifier()
+    orchestrator = FixOrchestrator()
+    
+    # Run initial scan to get ALL issues
+    all_issues = run_ruff(str(repo_root))
+    initial_issue_keys = {(i["filename"], i["line"], i["code"]) for i in all_issues}
+    
+    # Apply safe fixes automatically
+    if all_issues:
+        orchestrator.execute_plan(str(repo_root), safety_mode='safe')
+    
+    # Re-scan to see what's left unfixed
+    remaining_issues = run_ruff(str(repo_root))
+    remaining_keys = {(i["filename"], i["line"], i["code"]) for i in remaining_issues}
+    
+    results: list[dict] = []
+
+    for issue in all_issues:
+        rel_path = os.path.relpath(issue["filename"], str(repo_root))
+        classification = classifier.classify(issue["code"])
+        issue_key = (issue["filename"], issue["line"], issue["code"])
+        was_fixed = issue_key not in remaining_keys
+
+        if classification["category"] == RuleCategory.SAFE:
+            category_value = IssueCategory.SAFE
+            severity = "info"
+        elif classification["category"] == RuleCategory.RISKY:
+            category_value = IssueCategory.REVIEW
+            severity = "warning"
+        else:
+            category_value = IssueCategory.SUGGESTION
+            severity = "info"
+
+        results.append({
+            "file_path": rel_path,
+            "line_number": issue["line"],
+            "issue_code": issue["code"],
+            "issue_name": classification.get("name", issue["code"]),
+            "category": category_value,
+            "severity": severity,
+            "message": issue["message"],
+            "suggestion": None,
+            "before_code": None,
+            "after_code": None,
+            "is_fixed": 1 if was_fixed else 0,
+        })
+
+    return results

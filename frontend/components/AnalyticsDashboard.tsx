@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge, Button } from '@/components/ui'
 import { TrendingUp, AlertCircle, CheckCircle, BarChart3 } from 'lucide-react'
 
+// Use real backend API, not local dummy routes
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 interface AnalyticsDashboardProps {
   repositoryId?: number
   days?: number
@@ -18,20 +21,15 @@ export function AnalyticsDashboard({ repositoryId, days = 30 }: AnalyticsDashboa
 
   useEffect(() => {
     const fetchAnalytics = async () => {
-      const token = localStorage.getItem('jwt_token')
-      
       try {
         // Fetch all analytics in parallel
+        const qs = new URLSearchParams({ days: String(days) })
+        if (repositoryId) qs.set('repository_id', String(repositoryId))
+
         const [statsRes, categoriesRes, topRes] = await Promise.all([
-          fetch(`/api/analytics/runs/stats?days=${days}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }),
-          fetch(`/api/analytics/issues/categories?days=${days}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }),
-          fetch(`/api/analytics/top-issues?days=${days}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
+          fetch(`${API_BASE}/api/analytics/runs/stats?${qs.toString()}`),
+          fetch(`${API_BASE}/api/analytics/issues/categories?${qs.toString()}`),
+          fetch(`${API_BASE}/api/analytics/top-issues?${qs.toString()}`)
         ])
 
         if (statsRes.ok) setStats(await statsRes.json())
@@ -156,13 +154,13 @@ export function AnalyticsDashboard({ repositoryId, days = 30 }: AnalyticsDashboa
         <CardContent>
           <div className="space-y-2">
             {topIssues?.top_issues?.map((issue: any, idx: number) => (
-              <div key={issue.rule_id} className="flex items-center gap-3 p-2 border border-gray-200 rounded">
+              <div key={issue.issue_code || issue.rule_id || idx} className="flex items-center gap-3 p-2 border border-gray-200 rounded">
                 <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 rounded font-semibold text-sm text-gray-700">
                   {idx + 1}
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900 text-sm">{issue.name}</p>
-                  <p className="text-xs text-gray-500">{issue.rule_id}</p>
+                  <p className="font-medium text-gray-900 text-sm">{issue.issue_name || issue.name}</p>
+                  <p className="text-xs text-gray-500">{issue.issue_code || issue.rule_id}</p>
                 </div>
                 <Badge className="bg-red-100 text-red-800">
                   {issue.occurrence_count} times

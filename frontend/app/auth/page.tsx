@@ -162,9 +162,9 @@ export default function AuthPage() {
               © 2026 AGI Engineer. All rights reserved.
             </p>
             <div className="flex gap-6 text-gray-600 text-sm">
-              <a href="/" className="hover:text-gray-900 transition">Home</a>
-              <a href="https://github.com" className="hover:text-gray-900 transition">GitHub</a>
-              <a href="/" className="hover:text-gray-900 transition">Contact</a>
+              <Link href="/" className="hover:text-gray-900 transition">Home</Link>
+              <Link href="https://github.com" className="hover:text-gray-900 transition">GitHub</Link>
+              <Link href="/" className="hover:text-gray-900 transition">Contact</Link>
             </div>
           </div>
         </div>

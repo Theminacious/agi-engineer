@@ -37,6 +37,12 @@ class AnalysisResult(Base):
 
     # Relationships
     run = relationship("AnalysisRun", back_populates="results")
+    # Link generated code fixes to this result
+    code_fixes = relationship(
+        "CodeFix",
+        back_populates="result",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<AnalysisResult(file={self.file_path}:{self.line_number}, code={self.issue_code})>"

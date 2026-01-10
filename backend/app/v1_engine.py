@@ -12,11 +12,16 @@ import subprocess
 import tempfile
 import shutil
 import json
+import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from app.models.analysis_result import AnalysisResult, IssueCategory
 import logging
+
+# Import RuleClassifier from agent directory
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from agent.rule_classifier import RuleClassifier, RuleCategory
 
 logger = logging.getLogger(__name__)
 
@@ -280,15 +285,19 @@ class V1AnalysisEngine:
         Returns:
             Category: safe, review, or suggestion
         """
-        # Simple heuristic: prefix-based categorization
+        # Use RuleClassifier for Python rules
         if language == "python":
-            if code.startswith("E"):  # PEP 8 errors
+            classifier = RuleClassifier()
+            classification = classifier.classify(code)
+            
+            # Map RuleCategory to IssueCategory
+            if classification.get('category') == RuleCategory.SAFE:
                 return IssueCategory.SAFE.value
-            elif code.startswith("W"):  # Warnings
+            elif classification.get('category') == RuleCategory.RISKY:
                 return IssueCategory.REVIEW.value
             else:
                 return IssueCategory.SUGGESTION.value
-        else:  # javascript
+        else:  # javascript - keep simple heuristic for now
             if code in ["no-console", "no-unused-vars", "semi"]:
                 return IssueCategory.SAFE.value
             elif code in ["require-jsdoc", "indent"]:

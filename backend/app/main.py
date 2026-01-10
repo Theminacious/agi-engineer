@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import health, oauth, webhooks, installations, analysis, websockets, fixes, analytics, teams
+from app.routers import health, oauth, webhooks, installations, analysis, websockets, fixes, analytics, teams, repositories
 
 # Create FastAPI app
 app = FastAPI(
@@ -31,6 +31,7 @@ app.include_router(websockets.router)
 app.include_router(fixes.router)
 app.include_router(analytics.router)
 app.include_router(teams.router)
+app.include_router(repositories.router)
 
 
 @app.get("/")

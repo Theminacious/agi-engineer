@@ -6,11 +6,12 @@ import { useEffect, useState } from 'react'
  * API client for backend communication
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export interface AnalysisRun {
   id: number
   repository_id: number
+  repository_name: string
   event: string
   branch: string
   commit_sha: string
@@ -73,7 +74,8 @@ export async function getRunDetail(runId: number, token?: string): Promise<Analy
   const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
   const res = await fetch(`${API_BASE}/api/runs/${runId}`, { headers })
   if (!res.ok) throw new Error('Failed to get run details')
-  return res.json()
+  const data = await res.json()
+  return data
 }
 
 export async function listRuns(

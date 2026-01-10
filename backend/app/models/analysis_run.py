@@ -37,6 +37,8 @@ class AnalysisRun(Base):
     # Relationships
     repository = relationship("Repository", back_populates="runs")
     results = relationship("AnalysisResult", back_populates="run", cascade="all, delete-orphan")
+    # Link any generated PRs associated with this run
+    generated_prs = relationship("GitHubPullRequest", back_populates="run", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<AnalysisRun(id={self.id}, status={self.status}, branch={self.github_branch})>"

@@ -10,6 +10,10 @@
 ```
 docs/
 ├── README.md                    ← Start here for overview
+├── INDEX.md                     ← This file
+├── AI_FEATURES.md               (AI enhancements & roadmap)
+├── V3_FEATURES.md               (V3 roadmap & ideas)
+├── GITHUB_OAUTH_SETUP.md        (OAuth setup guide)
 ├── v1/                          ← V1 CLI Tool Documentation
 │   ├── README.md                (Quick start & features)
 │   ├── COMPLETE.md              (Complete feature list & specs)
@@ -21,16 +25,15 @@ docs/
 │   ├── 02-PHASE2-OAUTH-WEBHOOKS.md (Authentication & webhooks)
 │   ├── 03-PHASE3-ANALYSIS.md    (Analysis engine & jobs)
 │   └── 04-PHASE4-DASHBOARD.md   (Frontend & UI)
-├── AI_FEATURES.md               (Future AI enhancements)
-├── V3_FEATURES.md               (V3 roadmap & ideas)
-├── COMPLETE_SUMMARY.md          (Executive summary)
-└── DOCUMENTATION_GUIDE.txt      (Visual navigation help)
+├── changelogs/                  ← Version changelogs
+│   └── V2_COMPLETE.md           (V2 completion summary)
+└── frontend/                    ← Frontend documentation
+    ├── ARCHITECTURE.md          (Frontend design)
+    └── README.md                (Frontend setup)
 
 root/
 ├── README.md                    ← Project entry point
-├── CONTRIBUTING.md              (How to contribute)
-├── DOCUMENTATION_GUIDE.txt      (Quick reference)
-└── COMPLETE_SUMMARY.md          (Full summary)
+└── docker-compose.yml           (Docker configuration)
 ```
 
 ---

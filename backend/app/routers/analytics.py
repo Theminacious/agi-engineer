@@ -55,6 +55,13 @@ async def get_run_statistics(
             daily_stats[day]["failed"] += 1
         daily_stats[day]["issues"] += run.total_results or 0
     
+    # Get fix counts from results
+    results = db.query(AnalysisResult).filter(
+        AnalysisResult.created_at >= cutoff_date
+    ).all()
+    fixed_count = sum(1 for r in results if r.is_fixed == 1)
+    unfixed_count = sum(1 for r in results if r.is_fixed == 0)
+
     return {
         "period_days": days,
         "daily_breakdown": [daily_stats[day] for day in sorted(daily_stats.keys())],
@@ -63,6 +70,8 @@ async def get_run_statistics(
             "completed": len([r for r in runs if r.status == RunStatus.COMPLETED]),
             "failed": len([r for r in runs if r.status == RunStatus.FAILED]),
             "total_issues": sum(r.total_results or 0 for r in runs),
+            "fixed_issues": fixed_count,
+            "unfixed_issues": unfixed_count,
             "average_issues_per_run": sum(r.total_results or 0 for r in runs) / len(runs) if runs else 0
         }
     }
@@ -92,7 +101,7 @@ async def get_issue_categories(
     
     categories = {}
     for result in results:
-        cat = result.category or "unknown"
+        cat = result.category.value if hasattr(result.category, "value") else (result.category or "unknown")
         if cat not in categories:
             categories[cat] = {
                 "name": cat,
@@ -227,14 +236,14 @@ async def get_top_issues(
     
     # Group by rule_id and count occurrences
     top_rules = db.query(
-        AnalysisResult.rule_id,
-        AnalysisResult.name,
+        AnalysisResult.issue_code,
+        AnalysisResult.issue_name,
         func.count(AnalysisResult.id).label('count')
     ).filter(
         AnalysisResult.created_at >= cutoff_date
     ).group_by(
-        AnalysisResult.rule_id,
-        AnalysisResult.name
+        AnalysisResult.issue_code,
+        AnalysisResult.issue_name
     ).order_by(
         func.count(AnalysisResult.id).desc()
     ).limit(limit).all()
@@ -242,8 +251,8 @@ async def get_top_issues(
     return {
         "top_issues": [
             {
-                "rule_id": rule[0],
-                "name": rule[1],
+                "issue_code": rule[0],
+                "issue_name": rule[1],
                 "occurrence_count": rule[2]
             }
             for rule in top_rules

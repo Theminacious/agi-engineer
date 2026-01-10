@@ -1,8 +1,9 @@
-"""Database connection and session management."""
+"""Database base, connection and session management."""
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from app.config import settings
+from .base import Base
 
 # Create database engine
 engine = create_engine(
@@ -22,3 +23,5 @@ def get_db() -> Session:
         yield db
     finally:
         db.close()
+
+__all__ = ["Base", "engine", "SessionLocal", "get_db"]

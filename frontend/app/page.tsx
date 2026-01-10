@@ -78,7 +78,7 @@ export default function HomePage() {
                 <TrendingUp className="w-6 h-6 text-blue-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3">Real-Time Insights</h3>
-              <p className="text-gray-600">Get instant feedback on every commit and pull request with detailed analysis, metrics, and trends across your team's work.</p>
+              <p className="text-gray-600">Get instant feedback on every commit and pull request with detailed analysis, metrics, and trends across your team&apos;s work.</p>
             </div>
 
             {/* Feature 3 */}
@@ -172,7 +172,7 @@ export default function HomePage() {
       <section id="roadmap" className="py-20 px-4 bg-gray-50 border-t border-gray-200">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl font-bold text-gray-900 text-center mb-4">Product Roadmap</h2>
-          <p className="text-center text-gray-600 mb-16">What we're building next</p>
+          <p className="text-center text-gray-600 mb-16">What we&apos;re building next</p>
           
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-lg border border-green-200 bg-green-50">
@@ -222,12 +222,12 @@ export default function HomePage() {
               Our platform combines cutting-edge AI technology with software engineering best practices to deliver actionable insights that help teams write cleaner, faster, and more maintainable code.
             </p>
             <p>
-              Whether you're a solo developer working on open-source projects or part of a large enterprise team, AGI Engineer provides the tools you need to continuously improve your codebase.
+              Whether you&apos;re a solo developer working on open-source projects or part of a large enterprise team, AGI Engineer provides the tools you need to continuously improve your codebase.
             </p>
             <div>
               <h3 className="text-2xl font-semibold text-gray-900 mb-3">Our Mission</h3>
               <p>
-                To empower developers with intelligent insights that make code review faster, more thorough, and more effective. We're committed to building tools that enhance human expertise, not replace it.
+                To empower developers with intelligent insights that make code review faster, more thorough, and more effective. We&apos;re committed to building tools that enhance human expertise, not replace it.
               </p>
             </div>
             <div>

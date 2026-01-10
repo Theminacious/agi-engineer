@@ -6,6 +6,7 @@ import hmac
 import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from fastapi import HTTPException, Request, Header
 from app.config import settings
 
 
@@ -139,3 +140,29 @@ def validate_webhook_signature(payload: bytes, signature: str) -> bool:
     ).hexdigest()
 
     return hmac.compare_digest(signature, expected_signature)
+
+def verify_token(token: str | None = None, authorization: str = Header(None)):
+    """FastAPI dependency and helper for verifying JWTs.
+    Accepts either a query param `token` or an Authorization Bearer header.
+    """
+    extracted = token
+    if not extracted and authorization and authorization.startswith("Bearer "):
+        extracted = authorization.split(" ", 1)[1]
+    if not extracted:
+        raise HTTPException(status_code=401, detail="Missing token")
+    try:
+        return JWTManager.verify_token(extracted)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def get_current_user(request: Request) -> Dict[str, Any]:
+    """FastAPI dependency to extract current user from Authorization header.
+    Returns user claims from JWT or raises 401 if invalid/missing.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header.split(" ", 1)[1]
+    claims = JWTManager.verify_token(token)
+    # Assume user info is nested under 'user' or include whole claims
+    return claims.get("user") or claims

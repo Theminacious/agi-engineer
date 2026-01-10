@@ -52,7 +52,8 @@ export default function RunsPage() {
 
   const filteredRuns = runs.filter((run) =>
     run.branch.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    run.id.toString().includes(searchQuery)
+    run.id.toString().includes(searchQuery) ||
+    run.repository_name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   return (
@@ -80,7 +81,7 @@ export default function RunsPage() {
                 <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by branch or run ID..."
+                  placeholder="Search by repository, branch, or run ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
@@ -132,6 +133,7 @@ export default function RunsPage() {
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Repository</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Event</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Branch</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Status</th>
@@ -147,6 +149,7 @@ export default function RunsPage() {
                         className="hover:bg-gray-50 transition-colors"
                       >
                         <td className="px-6 py-4 text-sm font-semibold text-blue-600">#{run.id}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{run.repository_name}</td>
                         <td className="px-6 py-4 text-sm text-gray-900">{run.event}</td>
                         <td className="px-6 py-4 text-sm">
                           <code className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700 border border-gray-200">{run.branch}</code>
@@ -158,7 +161,14 @@ export default function RunsPage() {
                           <span className="text-amber-600 font-semibold">{run.total_results}</span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {new Date(run.created_at).toLocaleString()}
+                          {new Date(run.created_at).toLocaleString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric',
+                            hour: 'numeric', 
+                            minute: '2-digit',
+                            hour12: true 
+                          })}
                         </td>
                         <td className="px-6 py-4 text-sm">
                           <Link
