@@ -9,6 +9,10 @@ import argparse
 import shutil
 import tempfile
 import hashlib
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 AGENT_DIR = os.path.join(BASE_DIR, "agent")
@@ -29,6 +33,8 @@ from safety_checker import SafetyChecker
 from ai_analyzer import AIAnalyzer
 from config_loader import Config
 from file_reader import read_file
+from edr import EDRGenerator
+from run_ledger import create_run_ledger
 
 
 def print_header(text: str):
@@ -109,6 +115,23 @@ def display_explanations(explainer: ExplainerEngine, grouped_issues: dict, only_
             seen.add(code)
 
 
+def get_repo_identifier(repo_path: str, repo_arg: str) -> str:
+    """
+    Extract repo identifier in format owner/repo.
+    Falls back to local path identifier if not a GitHub URL.
+    """
+    if repo_arg.startswith(('http://', 'https://', 'git@')):
+        # Try to extract owner/repo from URL
+        # https://github.com/owner/repo.git -> owner/repo
+        # git@github.com:owner/repo.git -> owner/repo
+        parts = repo_arg.rstrip('/').replace('.git', '').split('/')
+        if len(parts) >= 2:
+            return f"{parts[-2]}/{parts[-1]}"
+    
+    # Fallback to local identifier
+    return build_repo_id(repo_path)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="AGI Engineer v3 - Smart code fixing with intelligence",
@@ -140,6 +163,8 @@ Examples:
     repo_path = args.repo
     cleanup_needed = False
     temp_dir = None
+    run_id = str(uuid.uuid4())[:8]  # Short 8-char run ID for EDR
+    ledger = None  # Run Ledger (Phase 7.2)
 
     try:
         # Clone if URL
@@ -163,6 +188,21 @@ Examples:
         # Load configuration
         config = Config(repo_path=repo_path)
 
+        # Initialize Run Ledger (Phase 7.2)
+        try:
+            repo_identifier = get_repo_identifier(repo_path, args.repo)
+            ledger = create_run_ledger(
+                run_id=run_id,
+                repo_id=repo_identifier,
+                environment="DEV",
+                initiated_by="CLI"
+            )
+            if ledger:
+                logger.info(f"Run Ledger enabled: {ledger.get_ledger_path()}")
+        except Exception as e:
+            logger.warning(f"Failed to create ledger: {e}; operating in LEGACY mode")
+            ledger = None
+
         # Show header
         print_header("AGI Engineer v3 - Smart Code Fixer")
         
@@ -175,11 +215,37 @@ Examples:
         print("\n🔍 Scanning repository with Ruff...")
         issues = run_ruff(repo_path)
         print(f"📊 Found {len(issues)} issues\n")
+        
+        # Emit: RUN_STARTED
+        if ledger:
+            try:
+                ledger.append_event(
+                    "RUN_STARTED",
+                    f"Analysis and fix execution began for {repo_path}"
+                )
+            except Exception as e:
+                logger.warning(f"Ledger event failed: {e}")
 
         if not issues:
             print("✨ No issues found! Repository is clean.")
+            # Seal ledger: COMPLETE (no fixes needed)
+            if ledger:
+                try:
+                    ledger.seal("COMPLETE")
+                except Exception as e:
+                    logger.warning(f"Ledger seal failed: {e}")
             return 0
 
+        # Emit: ISSUE_DETECTED
+        if ledger and len(issues) > 0:
+            try:
+                ledger.append_event(
+                    "ISSUE_DETECTED",
+                    f"Found {len(issues)} code issues via Ruff analyzer"
+                )
+            except Exception as e:
+                logger.warning(f"Ledger event failed: {e}")
+        
         # Initialize smart tools
         classifier = RuleClassifier()
         orchestrator = FixOrchestrator()
@@ -203,6 +269,17 @@ Examples:
 
         # Plan fixes
         plan = orchestrator.plan_fixes(issues, safety_mode='safe')
+        
+        # Emit: PLAN_APPROVED (after fix planning)
+        if ledger and plan['summary']['will_fix'] > 0:
+            try:
+                ledger.append_event(
+                    "PLAN_APPROVED",
+                    f"Fix plan approved: {plan['summary']['will_fix']} issues to auto-fix",
+                    phase="PHASE_2"
+                )
+            except Exception as e:
+                logger.warning(f"Ledger event failed: {e}")
         
         if args.smart:
             print_section("🔧 FIX PLAN")
@@ -235,11 +312,27 @@ Examples:
                                 print(suggestions)
             
             print("\n✨ Analysis complete!")
+            # Seal ledger: COMPLETE (analyze-only mode)
+            if ledger:
+                try:
+                    ledger.seal("COMPLETE")
+                except Exception as e:
+                    logger.warning(f"Ledger seal failed: {e}")
             return 0
 
         # Record before state
         print("\n📸 Recording initial state...")
         safety_checker.record_before(repo_path)
+        
+        # Emit: SAFETY_CHECK_PASSED (pre-execution safety)
+        if ledger:
+            try:
+                ledger.append_event(
+                    "SAFETY_CHECK_PASSED",
+                    "Pre-execution safety verification passed"
+                )
+            except Exception as e:
+                logger.warning(f"Ledger event failed: {e}")
 
         # Create branch if needed
         branch_name = args.branch
@@ -255,6 +348,19 @@ Examples:
         # Apply fixes
         print("\n🔧 Applying fixes...")
         orchestrator.execute_plan(repo_path, safety_mode='safe')
+        
+        # Emit: FIX_APPLIED (summary for all safe fixes)
+        if ledger and plan['summary']['will_fix'] > 0:
+            try:
+                # Group fixes by rule code
+                fixes_by_rule = plan['summary'].get('fixes_by_rule', {})
+                for rule_code, count in fixes_by_rule.items():
+                    ledger.append_event(
+                        "FIX_APPLIED",
+                        f"Applied {count} fix(es) for rule {rule_code}"
+                    )
+            except Exception as e:
+                logger.warning(f"Ledger event failed: {e}")
 
         # Record after state
         print("📸 Recording final state...")
@@ -264,6 +370,46 @@ Examples:
         regression_report = safety_checker.check_regressions()
         fixed_count = regression_report['net_fixed']
 
+        # Generate EDR (always, even if no fixes)
+        edr_generator = EDRGenerator()
+        repo_identifier = get_repo_identifier(repo_path, args.repo)
+        
+        # Get files that were changed (from analyze step)
+        files_changed = list(set(issue['filename'] for issue in issues))
+        lines_changed = sum(1 for issue in issues for _ in [issue])  # Approximation
+        
+        edr = edr_generator.generate(
+            repo=repo_identifier,
+            run_id=run_id,
+            issues_before=len(issues),
+            issues_after=regression_report['issues_after'],
+            fixed_count=fixed_count,
+            issues_fixed=[i for i in issues if classifier.classify(i['code'])['category'].value == 'safe'],
+            safety_mode='smart' if args.smart else 'safe_only',
+            regressions_detected=regression_report.get('new_issues', False),
+            files_changed=files_changed,
+            lines_changed=lines_changed,
+            tests_run=[],
+            tests_status='skipped',
+            analyze_only=args.analyze_only
+        )
+        
+        # Persist EDR to disk
+        edr_path = edr_generator.persist(edr)
+        print(f"💾 EDR saved: {edr_path}")
+        
+        # Emit: EDR_FINALIZED
+        if ledger:
+            try:
+                ledger.append_event(
+                    "EDR_FINALIZED",
+                    f"Engineering Decision Report generated (risk={edr['summary']['risk_level']})",
+                    phase="PHASE_5",
+                    payload_ref=edr['edr_id']
+                )
+            except Exception as e:
+                logger.warning(f"Ledger event failed: {e}")
+        
         # Display results
         print_header(f"✅ RESULTS - Fixed {fixed_count} issues")
         
@@ -281,7 +427,7 @@ Examples:
             print("Analyzing remaining code quality issues...")
             
             # Get files that were modified
-            modified_files = list(set(issue['filename'] for issue in issues if classifier.classify(issue['code'])[0] == 'SAFE'))
+            modified_files = list(set(issue['filename'] for issue in issues if classifier.classify(issue['code'])['category'].value == 'safe'))
             
             for file_path in modified_files[:2]:  # Analyze up to 2 modified files
                 abs_path = os.path.join(repo_path, file_path)
@@ -295,6 +441,12 @@ Examples:
 
         if fixed_count == 0:
             print("⏭  No issues were auto-fixed")
+            # Seal ledger: COMPLETE (no fixes applied)
+            if ledger:
+                try:
+                    ledger.seal("COMPLETE")
+                except Exception as e:
+                    logger.warning(f"Ledger seal failed: {e}")
             return 0
 
         # Commit and push
@@ -313,7 +465,7 @@ Examples:
 
             if args.pr:
                 pr_title = f"🤖 AGI Engineer v3: Fixed {fixed_count} code issues"
-                pr_body = generate_pr_body(fixed_count, issues[:fixed_count])
+                pr_body = generate_pr_body(fixed_count, issues[:fixed_count], edr=edr)
                 
                 pr_url, success, error = create_pull_request(args.repo, branch_name, pr_title, pr_body)
                 
@@ -321,15 +473,35 @@ Examples:
                     print(f"\n🎉 Pull Request: {pr_url}")
 
         print("\n✨ Done!")
+        
+        # Seal ledger: COMPLETE (successful execution)
+        if ledger:
+            try:
+                ledger.seal("COMPLETE")
+            except Exception as e:
+                logger.warning(f"Ledger seal failed: {e}")
+        
         return 0
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted")
+        # Seal ledger: ABORTED (user interrupt)
+        if ledger:
+            try:
+                ledger.seal("ABORTED")
+            except Exception as e:
+                logger.warning(f"Ledger seal failed: {e}")
         return 1
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
         traceback.print_exc()
+        # Seal ledger: ABORTED (exception)
+        if ledger:
+            try:
+                ledger.seal("ABORTED")
+            except Exception as e:
+                logger.warning(f"Ledger seal failed: {e}")
         return 1
     finally:
         if cleanup_needed and temp_dir and os.path.exists(temp_dir):

@@ -1,0 +1,12 @@
+{
+  "run_id": "run-2026-01-12-sample",
+  "final_state": "COMPLETE",
+  "event_count": 18,
+  "fixes_count": 5,
+  "plan_approved": true,
+  "safety_passed": true,
+  "edr_id": "edr-2026-01-12-sample",
+  "invariant_violations": [],
+  "duration_seconds": 330.0,
+  "issues_detected": 1
+}

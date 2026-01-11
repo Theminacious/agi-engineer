@@ -1,0 +1,12 @@
+{
+  "run_id": "run-2026-01-12-sample",
+  "repo_id": "sample-python-project",
+  "environment": "DEV",
+  "run_policy_id": "default-v1",
+  "started_at": "2026-01-12T10:00:00Z",
+  "ended_at": "2026-01-12T10:05:30Z",
+  "final_state": "COMPLETE",
+  "initiated_by": "CLI",
+  "ledger_version": 1,
+  "immutable": true
+}

@@ -1,0 +1,318 @@
+{
+  "run_id": "run-2026-01-12-sample",
+  "repo_id": "sample-python-project",
+  "metadata": {
+    "started_at": "2026-01-12T10:00:00Z",
+    "ended_at": "2026-01-12T10:05:30Z",
+    "duration_seconds": 330.0,
+    "final_state": "COMPLETE",
+    "event_count": 18
+  },
+  "timeline": {
+    "total_events": 18,
+    "phases": {
+      "PHASE_6": 5,
+      "PHASE_1": 1,
+      "PHASE_2": 1,
+      "PHASE_3": 2,
+      "PHASE_4": 2,
+      "PHASE_5": 7
+    },
+    "event_types": {
+      "RUN_CREATED": 1,
+      "RUN_STARTED": 1,
+      "ISSUE_DETECTED": 1,
+      "POLICY_RESOLVED": 1,
+      "PLAN_CREATED": 1,
+      "PLAN_APPROVED": 1,
+      "SAFETY_CHECK_STARTED": 1,
+      "SAFETY_CHECK_PASSED": 1,
+      "FIX_APPLIED": 5,
+      "TEST_VALIDATION_STARTED": 1,
+      "TEST_VALIDATION_PASSED": 1,
+      "EDR_GENERATION_STARTED": 1,
+      "EDR_FINALIZED": 1,
+      "RUN_COMPLETED": 1
+    },
+    "first_event": {
+      "id": "evt-00000000-0000-0000-0000-000000000000",
+      "run_id": "run-2026-01-12-sample",
+      "sequence": 0,
+      "timestamp": "2026-01-12T10:00:00Z",
+      "event_type": "RUN_CREATED",
+      "actor": "system",
+      "actor_role": "System",
+      "phase": "PHASE_6",
+      "payload_ref": null,
+      "summary": "Run initialized for sample-python-project"
+    },
+    "last_event": {
+      "id": "evt-00000000-0000-0000-0000-000000000017",
+      "run_id": "run-2026-01-12-sample",
+      "sequence": 17,
+      "timestamp": "2026-01-12T10:05:30Z",
+      "event_type": "RUN_COMPLETED",
+      "actor": "system",
+      "actor_role": "System",
+      "phase": "PHASE_6",
+      "payload_ref": null,
+      "summary": "Run finished with state: COMPLETE"
+    }
+  },
+  "decisions": {
+    "plan_approved": true,
+    "approvals_count": 1,
+    "approvals": [
+      {
+        "sequence": 5,
+        "actor": "alice@company.com",
+        "actor_role": "Human",
+        "timestamp": "2026-01-12T10:01:30Z"
+      }
+    ]
+  },
+  "fixes": {
+    "count": 5,
+    "items": [
+      {
+        "sequence": 8,
+        "actor": "System",
+        "summary": "Removed unused import: os in utils.py"
+      },
+      {
+        "sequence": 9,
+        "actor": "System",
+        "summary": "Removed unused import: sys in helpers.py"
+      },
+      {
+        "sequence": 10,
+        "actor": "System",
+        "summary": "Fixed line too long in handler.py (125 \u2192 100 chars)"
+      },
+      {
+        "sequence": 11,
+        "actor": "System",
+        "summary": "Removed unused import: typing in models.py"
+      },
+      {
+        "sequence": 12,
+        "actor": "System",
+        "summary": "Fixed indentation in config.py"
+      }
+    ]
+  },
+  "safety": {
+    "passed": true,
+    "policy_refs": [
+      "policy-default-v1-2026-01-12"
+    ],
+    "events_count": 1
+  },
+  "edr": {
+    "id": "edr-2026-01-12-sample",
+    "finalized": true
+  },
+  "overrides": {
+    "rejected": false,
+    "aborted": false,
+    "events": []
+  },
+  "issues": {
+    "detected": 1
+  },
+  "invariants": {
+    "violations": [],
+    "violation_count": 0
+  },
+  "audit_preview": [
+    {
+      "timestamp": "2026-01-12T10:00:00Z",
+      "sequence": 0,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "RUN_CREATED",
+      "payload_ref": null,
+      "summary": "Run initialized for sample-python-project"
+    },
+    {
+      "timestamp": "2026-01-12T10:00:05Z",
+      "sequence": 1,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "RUN_STARTED",
+      "payload_ref": null,
+      "summary": "Execution begun"
+    },
+    {
+      "timestamp": "2026-01-12T10:00:15Z",
+      "sequence": 2,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "ISSUE_DETECTED",
+      "payload_ref": null,
+      "summary": "Found 18 issues: F401 (unused import, 5), E501 (line too long, 8), W291 (trailing whitespace, 3), E303 (too many blank lines, 2)"
+    },
+    {
+      "timestamp": "2026-01-12T10:00:20Z",
+      "sequence": 3,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "POLICY_RESOLVED",
+      "payload_ref": "policy-default-v1-2026-01-12",
+      "summary": "Default policy resolved; 5 auto-fixable, 0 need approval, 13 rejected (low confidence)"
+    },
+    {
+      "timestamp": "2026-01-12T10:00:25Z",
+      "sequence": 4,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "PLAN_CREATED",
+      "payload_ref": null,
+      "summary": "Plan created: Fix 5 issues with high confidence (F401: 5)"
+    },
+    {
+      "timestamp": "2026-01-12T10:01:30Z",
+      "sequence": 5,
+      "actor": "alice@company.com",
+      "actor_role": "Human",
+      "event_type": "PLAN_APPROVED",
+      "payload_ref": null,
+      "summary": "Human approved plan; 5 unused import fixes approved"
+    },
+    {
+      "timestamp": "2026-01-12T10:01:35Z",
+      "sequence": 6,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "SAFETY_CHECK_STARTED",
+      "payload_ref": null,
+      "summary": "Initiating safety validation against policy default-v1"
+    },
+    {
+      "timestamp": "2026-01-12T10:01:40Z",
+      "sequence": 7,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "SAFETY_CHECK_PASSED",
+      "payload_ref": "policy-default-v1-2026-01-12",
+      "summary": "Safety checks passed; fixes are deterministic and policy-compliant"
+    },
+    {
+      "timestamp": "2026-01-12T10:02:00Z",
+      "sequence": 8,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "FIX_APPLIED",
+      "payload_ref": null,
+      "summary": "Removed unused import: os in utils.py"
+    },
+    {
+      "timestamp": "2026-01-12T10:02:05Z",
+      "sequence": 9,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "FIX_APPLIED",
+      "payload_ref": null,
+      "summary": "Removed unused import: sys in helpers.py"
+    },
+    {
+      "timestamp": "2026-01-12T10:02:10Z",
+      "sequence": 10,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "FIX_APPLIED",
+      "payload_ref": null,
+      "summary": "Fixed line too long in handler.py (125 \u2192 100 chars)"
+    },
+    {
+      "timestamp": "2026-01-12T10:02:15Z",
+      "sequence": 11,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "FIX_APPLIED",
+      "payload_ref": null,
+      "summary": "Removed unused import: typing in models.py"
+    },
+    {
+      "timestamp": "2026-01-12T10:02:20Z",
+      "sequence": 12,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "FIX_APPLIED",
+      "payload_ref": null,
+      "summary": "Fixed indentation in config.py"
+    },
+    {
+      "timestamp": "2026-01-12T10:03:00Z",
+      "sequence": 13,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "TEST_VALIDATION_STARTED",
+      "payload_ref": null,
+      "summary": "Running test suite against fixed code"
+    },
+    {
+      "timestamp": "2026-01-12T10:04:30Z",
+      "sequence": 14,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "TEST_VALIDATION_PASSED",
+      "payload_ref": null,
+      "summary": "All tests passed (12/12); no regressions detected"
+    },
+    {
+      "timestamp": "2026-01-12T10:05:00Z",
+      "sequence": 15,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "EDR_GENERATION_STARTED",
+      "payload_ref": null,
+      "summary": "Generating Engineering Decision Report"
+    },
+    {
+      "timestamp": "2026-01-12T10:05:25Z",
+      "sequence": 16,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "EDR_FINALIZED",
+      "payload_ref": "edr-2026-01-12-sample",
+      "summary": "Engineering Decision Report finalized; 5 fixes applied, 98% confidence"
+    },
+    {
+      "timestamp": "2026-01-12T10:05:30Z",
+      "sequence": 17,
+      "actor": "system",
+      "actor_role": "System",
+      "event_type": "RUN_COMPLETED",
+      "payload_ref": null,
+      "summary": "Run finished with state: COMPLETE"
+    }
+  ],
+  "query_summary": {
+    "total_fixes_applied": 5,
+    "human_approvals_count": 1,
+    "policies_referenced": [
+      "default-v1",
+      "policy-default-v1-2026-01-12"
+    ],
+    "edr_id": "edr-2026-01-12-sample"
+  },
+  "causality_trace": {
+    "payload_ref": "edr-2026-01-12-sample",
+    "events_count": 1,
+    "events": [
+      {
+        "id": "evt-00000000-0000-0000-0000-000000000016",
+        "run_id": "run-2026-01-12-sample",
+        "sequence": 16,
+        "timestamp": "2026-01-12T10:05:25Z",
+        "event_type": "EDR_FINALIZED",
+        "actor": "system",
+        "actor_role": "System",
+        "phase": "PHASE_6",
+        "payload_ref": "edr-2026-01-12-sample",
+        "summary": "Engineering Decision Report finalized; 5 fixes applied, 98% confidence"
+      }
+    ]
+  }
+}
