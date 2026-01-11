@@ -18,7 +18,8 @@ import {
   Clock,
   Loader2,
   Info,
-  Layers
+  Layers,
+  Shield
 } from 'lucide-react'
 
 // --- CUSTOM "NEURAL CONSTRUCT" LOGO ---
@@ -84,13 +85,19 @@ export function Header() {
     router.push('/')
   }
 
-  const isActive = (path: string) => pathname === path
+  const isActive = (path: string) => {
+    if (path === '/governance') {
+      return pathname === path || pathname?.startsWith('/governance/')
+    }
+    return pathname === path
+  }
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/runs', label: 'Runs & Logs', icon: Layers },
     { href: '/v3-analysis', label: 'AGI Engine', icon: Zap },
+    { href: '/governance', label: 'Proof & Governance', icon: Shield },
   ]
 
   if (!user) return null
