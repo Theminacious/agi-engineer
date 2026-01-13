@@ -6,6 +6,7 @@ import {
 } from '@/lib/ledgerReader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import PlanContextBlock from '@/components/governance/PlanContextBlock'
 import Link from 'next/link'
 import ReadOnlyBadge from '@/components/governance/ReadOnlyBadge'
 import RunLedgerTimeline from '@/components/governance/RunLedgerTimeline'
@@ -171,6 +172,9 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
           </div>
         </CardContent>
       </Card>
+
+      {/* Plan Context Block (Phase 13.4) */}
+      <PlanContextBlock plan="developer" timestamp={metadata.started_at} />
 
       {/* Intelligence Proposals Section (if any) */}
       {intelligenceProposals.length > 0 && (

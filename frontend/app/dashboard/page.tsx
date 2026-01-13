@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { listRuns, AnalysisRun } from '@/lib/api'
 import { Header, Loading, ErrorAlert, StatusBadge } from '@/components/layout'
 import { Badge } from '@/components/ui'
+import AnalyzerCoveragePanel from '@/components/dashboard/AnalyzerCoveragePanel'
 import Link from 'next/link'
 import { 
   TrendingUp, 
@@ -231,6 +232,9 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
             
+            {/* Analyzer Coverage Panel */}
+            <AnalyzerCoveragePanel currentPlan="developer" />
+
             {/* Metrics Grid */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard 

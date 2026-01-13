@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getRunDetail, AnalysisRunDetail, API_BASE } from '@/lib/api'
 import { Header, Loading, ErrorAlert, StatusBadge, CategoryBadge } from '@/components/layout'
 import { Button, Badge, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Card, CardHeader, CardTitle, CardContent } from '@/components/ui'
+import ExecutionCoverage from '@/components/runs/ExecutionCoverage'
 import { ArrowLeft, RefreshCw, FileCode, GitBranch, GitPullRequest } from 'lucide-react'
 
 export default function RunDetailPage() {
@@ -186,6 +187,15 @@ export default function RunDetailPage() {
               {prSuccess}
             </div>
           )}
+
+          {/* Execution Coverage */}
+          <div className="mb-6">
+            <ExecutionCoverage 
+              plan="developer" 
+              executedAnalyzers={data?.analyzed_by || []}
+              skippedAnalyzers={data?.skipped_analyzers || []}
+            />
+          </div>
           
           <div className="mb-4 bg-card border border-border border-l-2 border-l-primary rounded p-4">
             <div className="grid grid-cols-3 gap-6 text-xs">
