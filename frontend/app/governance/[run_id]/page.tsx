@@ -12,12 +12,15 @@ import RunLedgerTimeline from '@/components/governance/RunLedgerTimeline'
 import ReplaySummaryPanel from '@/components/governance/ReplaySummaryPanel'
 import InvariantStatus from '@/components/governance/InvariantStatus'
 import AuditTable from '@/components/governance/AuditTable'
+import IntelligenceOverviewPanel from '@/components/governance/intelligence/IntelligenceOverviewPanel'
+import IntelligenceProposalList from '@/components/governance/intelligence/IntelligenceProposalList'
 import { 
   ArrowLeft,
   GitBranch,
   Calendar,
   Lock,
-  Shield
+  Shield,
+  Brain
 } from 'lucide-react'
 
 interface GovernanceRunDetailPageProps {
@@ -91,6 +94,12 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
     }
   ]
 
+  // Extract intelligence proposals from events (Phase 11.4)
+  const intelligenceProposals = events
+    .filter(event => event.event_type === 'INTELLIGENCE_PROPOSAL')
+    .map(event => event.payload)
+    .filter((payload): payload is Record<string, any> => Boolean(payload))
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Back Navigation */}
@@ -162,6 +171,28 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
           </div>
         </CardContent>
       </Card>
+
+      {/* Intelligence Proposals Section (if any) */}
+      {intelligenceProposals.length > 0 && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Brain className="w-5 h-5 text-purple-600" />
+              <h2 className="text-lg font-semibold text-purple-900">
+                🧠 Intelligence Proposals
+              </h2>
+              <Badge variant="outline" className="text-purple-700 border-purple-300">
+                {intelligenceProposals.length} proposal{intelligenceProposals.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+            <p className="text-sm text-purple-800 mb-4">
+              The analyzers detected potential issues and suggested strategies. 
+              All data is immutable and replayable. No code has been modified.
+            </p>
+            <IntelligenceProposalList proposals={intelligenceProposals as any} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
