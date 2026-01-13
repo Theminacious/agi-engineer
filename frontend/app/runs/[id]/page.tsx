@@ -188,12 +188,14 @@ export default function RunDetailPage() {
             </div>
           )}
 
-          {/* Execution Coverage */}
+          {/* Execution Coverage - Phase 13.4 */}
+          {/* Note: Analyzer execution data comes from ledger (Phase 13.3) */}
+          {/* Currently showing placeholder; backend will populate from selection event */}
           <div className="mb-6">
             <ExecutionCoverage 
               plan="developer" 
-              executedAnalyzers={data?.analyzed_by || []}
-              skippedAnalyzers={data?.skipped_analyzers || []}
+              executedAnalyzers={[]}
+              skippedAnalyzers={[]}
             />
           </div>
           
