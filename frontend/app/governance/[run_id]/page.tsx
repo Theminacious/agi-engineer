@@ -15,13 +15,15 @@ import InvariantStatus from '@/components/governance/InvariantStatus'
 import AuditTable from '@/components/governance/AuditTable'
 import IntelligenceOverviewPanel from '@/components/governance/intelligence/IntelligenceOverviewPanel'
 import IntelligenceProposalList from '@/components/governance/intelligence/IntelligenceProposalList'
+import { FixListView } from '@/components/fixes/FixListView'
 import { 
   ArrowLeft,
   GitBranch,
   Calendar,
   Lock,
   Shield,
-  Brain
+  Brain,
+  Wrench
 } from 'lucide-react'
 
 interface GovernanceRunDetailPageProps {
@@ -45,6 +47,24 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
   const events = await readLedgerEvents(run_id)
   const summary = await readReplaySummary(run_id)
   const invariants = await checkInvariants(events, metadata)
+
+  // Fetch fixes for this run (Phase 15.1)
+  let fixes = []
+  let fixError = null
+  try {
+    const fixResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/fixes/run/${run_id}`, {
+      cache: 'no-store',
+      headers: {
+        'Authorization': `Bearer ${process.env.API_TOKEN || 'dev-token'}`
+      }
+    })
+    if (fixResponse.ok) {
+      const fixData = await fixResponse.json()
+      fixes = fixData.fixes || []
+    }
+  } catch (e) {
+    fixError = e instanceof Error ? e.message : 'Failed to load fixes'
+  }
 
   const formatTimestamp = (ts: string) => {
     const date = new Date(ts)
@@ -174,7 +194,7 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
       </Card>
 
       {/* Plan Context Block (Phase 13.4) */}
-      <PlanContextBlock plan="developer" timestamp={metadata.started_at} />
+      <PlanContextBlock timestamp={metadata.started_at} />
 
       {/* Intelligence Proposals Section (if any) */}
       {intelligenceProposals.length > 0 && (
@@ -194,6 +214,33 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
               All data is immutable and replayable. No code has been modified.
             </p>
             <IntelligenceProposalList proposals={intelligenceProposals as any} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Phase 15.1: Governed Fixes - PRIMARY CONTROL SURFACE */}
+      {fixes.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Wrench className="w-5 h-5 text-orange-600" />
+              <h2 className="text-lg font-semibold text-orange-900">
+                🛠️ Governed Fixes
+              </h2>
+              <Badge variant="outline" className="text-orange-700 border-orange-300">
+                {fixes.length} fix{fixes.length !== 1 ? 'es' : ''}
+              </Badge>
+            </div>
+            <div className="bg-white border border-orange-200 rounded-md p-3 mb-4">
+              <p className="text-xs text-orange-900 font-medium mb-1">
+                ⚠️ Human Approval Required
+              </p>
+              <p className="text-xs text-orange-800">
+                All fixes require explicit approval before application. Approvals and applications 
+                are recorded in the immutable ledger with timestamps, actors, and plan context.
+              </p>
+            </div>
+            <FixListView fixes={fixes} />
           </CardContent>
         </Card>
       )}

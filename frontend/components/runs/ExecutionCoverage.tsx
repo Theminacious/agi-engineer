@@ -1,15 +1,19 @@
 /**
  * Execution Coverage Section for Run Detail Page
  * 
- * Phase 13.4: Show which analyzers ran vs were skipped due to plan
+ * Phase 14.3.1: Upgrade Motivation & Friction Layer
  * 
- * READ-ONLY: Display only, no mutation
+ * Shows which intelligence capabilities ran vs were unavailable.
+ * Integrates contextual upgrade prompt when capabilities are skipped.
+ * 
+ * READ-ONLY: Display only, no mutation, no billing
  */
 
 'use client'
 
 import { useMemo } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui'
+import UpgradePrompt from '@/components/subscription/UpgradePrompt'
 import { 
   getAllAnalyzers,
   getAnalyzersForPlan,
@@ -17,7 +21,7 @@ import {
   getPlanLabel,
   type PlanType,
 } from '@/lib/analyzerRegistry'
-import { CheckCircle2, SkipForward, AlertCircle } from 'lucide-react'
+import { CheckCircle2, SkipForward, AlertCircle, Info } from 'lucide-react'
 
 interface ExecutionCoverageProps {
   plan: PlanType | null
@@ -59,14 +63,33 @@ export default function ExecutionCoverage({
   )
 
   const planLabel = plan ? getPlanLabel(plan) : 'Unknown'
+  
+  // Experience-based plan names
+  const planExperienceMap: Record<PlanType, string> = {
+    developer: 'Core Engineer',
+    team: 'Advanced Engineer',
+    enterprise: 'Autonomous Engineer',
+  }
+  const experienceName = plan ? planExperienceMap[plan] : 'Unknown'
 
   return (
-    <Card className="border-l-4 border-l-purple-500">
+    <>
+      {/* Upgrade prompt if capabilities were skipped */}
+      {planLocked.length > 0 && plan && (
+        <div className="mb-4">
+          <UpgradePrompt 
+            currentPlan={plan}
+            skippedAnalyzers={planLocked.map(a => a.id)}
+          />
+        </div>
+      )}
+      
+      <Card className="border-l-4 border-l-purple-500">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Execution Coverage</CardTitle>
+          <CardTitle className="text-lg">Intelligence Execution Report</CardTitle>
           <Badge variant="outline" className="text-xs">
-            Plan: {planLabel}
+            Experience: {experienceName}
           </Badge>
         </div>
       </CardHeader>
@@ -76,7 +99,7 @@ export default function ExecutionCoverage({
           {/* Execution banner */}
           <div className="bg-purple-50 border border-purple-200 rounded p-3">
             <p className="text-xs text-purple-700">
-              <strong>Immutable:</strong> Analyzer availability and execution are determined before running and recorded immutably in the ledger.
+              <strong>Immutable Governance:</strong> Your AGI's capabilities are determined at run-time and recorded permanently in the ledger for complete transparency.
             </p>
           </div>
 
@@ -84,11 +107,11 @@ export default function ExecutionCoverage({
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-green-50 border border-green-200 rounded p-3">
               <div className="text-lg font-bold text-green-700">{executed.length}</div>
-              <div className="text-xs text-green-600 font-medium">Executed</div>
+              <div className="text-xs text-green-600 font-medium">Capabilities Executed</div>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded p-3">
               <div className="text-lg font-bold text-amber-700">{planLocked.length}</div>
-              <div className="text-xs text-amber-600 font-medium">Plan-Locked</div>
+              <div className="text-xs text-amber-600 font-medium">Advanced Unavailable</div>
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded p-3">
               <div className="text-lg font-bold text-blue-700">{skipped.length}</div>
@@ -96,12 +119,12 @@ export default function ExecutionCoverage({
             </div>
           </div>
 
-          {/* Executed analyzers */}
+          {/* Executed services */}
           {executed.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-600" />
-                Executed Analyzers ({executed.length})
+                Active Capabilities ({executed.length})
               </h4>
               <div className="space-y-2 pl-2">
                 {executed.map(analyzer => (
@@ -113,8 +136,8 @@ export default function ExecutionCoverage({
                       <CheckCircle2 className="w-4 h-4 text-green-600" />
                     </div>
                     <div className="flex-grow">
-                      <div className="font-medium text-gray-900">{analyzer.id}</div>
-                      <div className="text-xs text-gray-600">{analyzer.description}</div>
+                      <div className="font-medium text-gray-900">{analyzer.service_description}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">Included in your {experienceName} experience</div>
                     </div>
                   </div>
                 ))}
@@ -122,12 +145,12 @@ export default function ExecutionCoverage({
             </div>
           )}
 
-          {/* Plan-locked analyzers */}
+          {/* Plan-locked services */}
           {planLocked.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600" />
-                Locked by Plan ({planLocked.length})
+                Advanced Capabilities Unavailable ({planLocked.length})
               </h4>
               <div className="space-y-2 pl-2">
                 {planLocked.map(analyzer => (
@@ -139,10 +162,12 @@ export default function ExecutionCoverage({
                       <AlertCircle className="w-4 h-4 text-amber-600" />
                     </div>
                     <div className="flex-grow">
-                      <div className="font-medium text-gray-900">{analyzer.id}</div>
-                      <div className="text-xs text-gray-600">{analyzer.description}</div>
-                      <div className="text-xs text-amber-600 font-semibold mt-1">
-                        Requires: {getPlanLabel(analyzer.min_plan)}
+                      <div className="font-medium text-gray-900">{analyzer.service_description}</div>
+                      <div className="flex items-start gap-1 mt-2 bg-white border border-amber-200 rounded px-2 py-1.5">
+                        <Info className="w-3 h-3 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs text-amber-700">
+                          Unlock with {planExperienceMap[analyzer.min_plan]}: Get deeper {analyzer.category} insights that catch issues before they impact your team.
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -179,5 +204,6 @@ export default function ExecutionCoverage({
         </div>
       </CardContent>
     </Card>
+    </>
   )
 }

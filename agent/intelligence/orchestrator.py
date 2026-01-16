@@ -7,9 +7,15 @@ Phase 11.3: Ledger Integration
 - Accepts optional ledger and run_id for recording proposals
 - Ledger writes are NON-FATAL (failures do not crash analysis)
 - Proposals are deterministic and replay-safe
+
+Phase 14.2: Plan Enforcement
+- Accepts optional plan_context for subscription-based execution
+- Filters analyzers based on plan entitlements
+- Records skipped analyzers with reasons
+- Maintains determinism and auditability
 """
 
-from typing import List, Dict, Set, Optional, Any
+from typing import List, Dict, Set, Optional, Any, Tuple
 import os
 import uuid
 from datetime import datetime
@@ -37,6 +43,7 @@ class IntelligenceOrchestrator:
     - Detect conflicts between analyses
     - Emit proposals as immutable ledger events
     - Track analysis timing and metrics
+    - Enforce subscription plan entitlements (Phase 14.2)
     """
     
     def __init__(self):
@@ -50,6 +57,9 @@ class IntelligenceOrchestrator:
         self.proposals_by_severity = {}
         self.proposals_by_bug_class = {}
         self.conflicting_proposals = []
+        
+        # Phase 14.2: Track skipped analyzers due to plan restrictions
+        self.skipped_analyzers: List[Dict[str, str]] = []
     
     def analyze(
         self,
@@ -60,11 +70,13 @@ class IntelligenceOrchestrator:
         run_id: Optional[str] = None,
         selection: Optional[AnalyzerSelection] = None,
         plan: Optional[str] = None,
+        plan_context: Optional[Any] = None,  # UserPlanContext from backend.app.plans
     ) -> List[IntelligenceProposal]:
         """
         Analyze repository with all analyzers.
         
         Phase 11.3: Optional ledger integration.
+        Phase 14.2: Optional plan_context for subscription enforcement.
         
         Args:
             repository_path: Path to repository root
@@ -72,6 +84,9 @@ class IntelligenceOrchestrator:
             branch: Git branch being analyzed
             ledger: Optional RunLedgerWriter instance for recording proposals
             run_id: Optional run_id for ledger events (uses self.run_id if not provided)
+            selection: Optional analyzer selection
+            plan: Optional plan tier string (deprecated in favor of plan_context)
+            plan_context: Optional UserPlanContext for plan enforcement
         
         Returns:
             List of intelligence proposals
@@ -80,6 +95,7 @@ class IntelligenceOrchestrator:
             - Proposals are generated deterministically regardless of ledger
             - Ledger failures are non-fatal and never crash analysis
             - Intelligence remains stateless and replayable
+            - Plan enforcement is deterministic and auditable
         """
         import time
         self.start_time = time.time()
@@ -88,10 +104,44 @@ class IntelligenceOrchestrator:
         analyzer_results = {}
         ledger_run_id = run_id or self.run_id
         
-        # If a selection is provided, validate and filter analyzers deterministically
-        analyzers_to_run = self._resolve_analyzers(selection=selection, plan=plan)
+        # Phase 14.2: Resolve analyzers with plan enforcement
+        analyzers_to_run, skipped_analyzers = self._resolve_analyzers_with_enforcement(
+            selection=selection,
+            plan=plan,
+            plan_context=plan_context
+        )
+        self.skipped_analyzers = skipped_analyzers
+        
         # Track actual analyzers used for this run (for summary/backward compatibility expectations)
         self.analyzers = analyzers_to_run
+
+        # Phase 14.2: Record plan context to ledger if provided (non-fatal)
+        if ledger is not None and plan_context is not None:
+            try:
+                ledger.append_event(
+                    event_type="PLAN_CONTEXT_CAPTURED",
+                    summary=f"Plan context: {plan_context.plan_tier.value}",
+                    actor="SYSTEM",
+                    actor_role="SUBSCRIPTION",
+                    phase="INTELLIGENCE",
+                    payload_ref=plan_context.to_dict(),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to record plan context to ledger: {e}")
+        
+        # Phase 14.2: Record skipped analyzers to ledger if any (non-fatal)
+        if ledger is not None and skipped_analyzers:
+            try:
+                ledger.append_event(
+                    event_type="ANALYZERS_SKIPPED",
+                    summary=f"{len(skipped_analyzers)} analyzer(s) skipped due to plan restrictions",
+                    actor="SYSTEM",
+                    actor_role="SUBSCRIPTION",
+                    phase="INTELLIGENCE",
+                    payload_ref={'skipped': skipped_analyzers},
+                )
+            except Exception as e:
+                logger.warning(f"Failed to record skipped analyzers to ledger: {e}")
 
         # If ledger present and selection provided, record selection event (non-fatal)
         if ledger is not None and selection is not None:
@@ -266,7 +316,7 @@ class IntelligenceOrchestrator:
     
     def get_summary(self) -> Dict:
         """Get analysis summary."""
-        return {
+        summary = {
             'run_id': self.run_id,
             'start_time': self.start_time,
             'end_time': self.end_time,
@@ -276,6 +326,13 @@ class IntelligenceOrchestrator:
             'proposals_by_bug_class': self.proposals_by_bug_class,
             'conflicting_proposals_count': len(self.conflicting_proposals),
         }
+        
+        # Phase 14.2: Include skipped analyzers in summary
+        if self.skipped_analyzers:
+            summary['skipped_analyzers'] = self.skipped_analyzers
+            summary['skipped_count'] = len(self.skipped_analyzers)
+        
+        return summary
 
     # ===== Registry-driven helpers =====
     def _instantiate_from_registry_default(self) -> List[Any]:
@@ -283,30 +340,76 @@ class IntelligenceOrchestrator:
         ids = [aid for aid, _ in list_analyzers_for_plan("developer")]
         return [ANALYZER_REGISTRY[aid]["class"]() for aid in ids]
 
-    def _resolve_analyzers(
+    def _resolve_analyzers_with_enforcement(
         self,
         selection: Optional[AnalyzerSelection],
         plan: Optional[str],
-    ) -> List[Any]:
+        plan_context: Optional[Any],  # UserPlanContext
+    ) -> Tuple[List[Any], List[Dict[str, str]]]:
         """
-        Determine analyzers to run using priority:
-        selection (if provided) → plan (if provided) → default developer plan.
-        Execution order is lexicographic by analyzer ID for determinism.
+        Determine analyzers to run with plan enforcement.
+        
+        Phase 14.2: Plan context enforcement.
+        
+        Priority:
+        1. selection (if provided) → validate and filter by plan
+        2. plan_context (if provided) → filter by allowed analyzers
+        3. plan (if provided) → use plan-based filtering
+        4. default → developer plan (backward compatibility)
+        
+        Returns:
+            Tuple of (analyzers_to_run, skipped_analyzers)
+            
+        Skipped analyzers format:
+            [{'analyzer_id': str, 'reason': str}, ...]
         """
+        skipped = []
+        
         # Priority 1: selection
         if selection is not None:
             validate_selection(selection.plan, selection.enabled_analyzers)
             ordered_ids = compute_execution_order(selection.enabled_analyzers)
-            return [ANALYZER_REGISTRY[aid]["class"]() for aid in ordered_ids]
+            
+            # Phase 14.2: Filter by plan_context if provided
+            if plan_context is not None:
+                allowed_ids = plan_context.filter_allowed_analyzers(ordered_ids)
+                skipped_ids = [aid for aid in ordered_ids if aid not in allowed_ids]
+                
+                for aid in skipped_ids:
+                    skipped.append({
+                        'analyzer_id': aid,
+                        'reason': plan_context.get_disallowed_reason(aid),
+                    })
+                
+                return [ANALYZER_REGISTRY[aid]["class"]() for aid in allowed_ids], skipped
+            
+            return [ANALYZER_REGISTRY[aid]["class"]() for aid in ordered_ids], skipped
+        
+        # Priority 2: plan_context (Phase 14.2)
+        if plan_context is not None:
+            # Get all analyzers that could run
+            all_ids = [aid for aid, _ in list_all_analyzers()]
+            allowed_ids = plan_context.filter_allowed_analyzers(all_ids)
+            skipped_ids = [aid for aid in all_ids if aid not in allowed_ids]
+            
+            for aid in skipped_ids:
+                skipped.append({
+                    'analyzer_id': aid,
+                    'reason': plan_context.get_disallowed_reason(aid),
+                })
+            
+            # Return allowed analyzers in deterministic order
+            allowed_ids_sorted = sorted(allowed_ids)
+            return [ANALYZER_REGISTRY[aid]["class"]() for aid in allowed_ids_sorted], skipped
 
-        # Priority 2: explicit plan
+        # Priority 3: explicit plan (backward compatibility)
         if plan is not None:
             ids = [aid for aid, _ in list_analyzers_for_plan(plan)]
-            return [ANALYZER_REGISTRY[aid]["class"]() for aid in ids]
+            return [ANALYZER_REGISTRY[aid]["class"]() for aid in ids], skipped
 
-        # Priority 3: backward-compatible default (developer plan)
+        # Priority 4: backward-compatible default (developer plan)
         ids = [aid for aid, _ in list_analyzers_for_plan("developer")]
-        return [ANALYZER_REGISTRY[aid]["class"]() for aid in ids]
+        return [ANALYZER_REGISTRY[aid]["class"]() for aid in ids], skipped
     
     def to_ledger_events(self, proposals: List[IntelligenceProposal]) -> List[Dict]:
         """

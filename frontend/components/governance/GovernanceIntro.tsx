@@ -6,21 +6,23 @@ import { Badge } from '@/components/ui/badge'
 
 /**
  * Governance Section Introduction
+ * 
+ * Phase 14.1: Harmonized with dashboard styling
  * Explains the read-only nature and purpose of this UI
  */
 export default function GovernanceIntro() {
   return (
     <div className="space-y-6">
       {/* Read-Only Banner */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardHeader>
+      <Card className="border-l-4 border-l-blue-500 bg-blue-50 border-blue-200">
+        <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Lock className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <CardTitle className="text-blue-900">Read-Only Proof & Governance</CardTitle>
-              <CardDescription className="text-blue-700">
+              <CardTitle className="text-lg text-blue-900">Read-Only Proof & Governance</CardTitle>
+              <CardDescription className="text-sm text-blue-700">
                 This section is immutable and exists to prove what happened
               </CardDescription>
             </div>
@@ -28,7 +30,7 @@ export default function GovernanceIntro() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-start gap-3">
-            <Badge variant="outline" className="bg-white text-blue-600 border-blue-300">
+            <Badge variant="outline" className="bg-white text-blue-600 border-blue-300 text-xs font-medium">
               <Eye className="w-3 h-3 mr-1" />
               VIEW ONLY
             </Badge>
@@ -42,9 +44,9 @@ export default function GovernanceIntro() {
 
       {/* Explanation Cards */}
       <div className="grid md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
+        <Card className="border-l-4 border-l-green-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-green-600" />
               Why This Exists
             </CardTitle>
@@ -60,9 +62,9 @@ export default function GovernanceIntro() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
+        <Card className="border-l-4 border-l-amber-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Lock className="w-4 h-4 text-amber-600" />
               Ledger {'>'} Logs
             </CardTitle>
@@ -78,10 +80,10 @@ export default function GovernanceIntro() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Eye className="w-4 h-4 text-blue-600" />
+        <Card className="border-l-4 border-l-purple-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Eye className="w-4 h-4 text-purple-600" />
               Replay {'>'} Monitoring
             </CardTitle>
           </CardHeader>

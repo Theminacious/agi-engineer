@@ -1,8 +1,12 @@
 /**
  * Analyzer Coverage Panel for Dashboard
  * 
- * Phase 13.4: Display all analyzers with their status (enabled/locked)
- * for the current subscription plan.
+ * Phase 14.3: Experience-Based Intelligence Display
+ * 
+ * Presents capabilities as "what your AGI can do":
+ * - Uses experience language: "Core Engineer", "Advanced Engineer", "Autonomous Engineer"
+ * - Focus on benefits and outcomes, not technical features
+ * - Locked services explain upgrade value, not technical limitations
  * 
  * READ-ONLY: No mutation, no upgrades, no billing logic
  */
@@ -20,7 +24,7 @@ import {
   type PlanType,
   type AnalyzerCategory,
 } from '@/lib/analyzerRegistry'
-import { Lock, CheckCircle2 } from 'lucide-react'
+import { Lock, CheckCircle2, Info } from 'lucide-react'
 
 interface AnalyzerCoveragePanelProps {
   currentPlan: PlanType | null
@@ -37,19 +41,25 @@ export default function AnalyzerCoveragePanel({ currentPlan }: AnalyzerCoverageP
   const totalAnalyzers = useMemo(() => getAllAnalyzers().length, [])
   const enabledCount = useMemo(() => availableForPlan.size, [availableForPlan])
 
-  const currentPlanLabel = currentPlan ? getPlanLabel(currentPlan) : 'Unknown'
+  // Map technical plan names to experience language
+  const planExperienceMap: Record<PlanType, string> = {
+    developer: 'Core Engineer',
+    team: 'Advanced Engineer',
+    enterprise: 'Autonomous Engineer',
+  }
+  const currentPlanLabel = currentPlan ? planExperienceMap[currentPlan] : 'Unknown'
 
   return (
     <Card className="border-l-4 border-l-blue-500">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Analyzer Coverage</CardTitle>
+          <CardTitle className="text-lg">Your AGI's Intelligence</CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs font-medium">
-              Plan: {currentPlanLabel}
+              Experience: {currentPlanLabel}
             </Badge>
             <Badge variant="default" className="text-xs font-medium bg-blue-600">
-              {enabledCount}/{totalAnalyzers} Active
+              {enabledCount}/{totalAnalyzers} Capabilities Active
             </Badge>
           </div>
         </div>
@@ -61,15 +71,15 @@ export default function AnalyzerCoveragePanel({ currentPlan }: AnalyzerCoverageP
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="bg-green-50 border border-green-200 rounded p-3">
               <div className="text-2xl font-bold text-green-700">{enabledCount}</div>
-              <div className="text-xs text-green-600 font-medium">Enabled Analyzers</div>
+              <div className="text-xs text-green-600 font-medium">Active Capabilities</div>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded p-3">
               <div className="text-2xl font-bold text-amber-700">{totalAnalyzers - enabledCount}</div>
-              <div className="text-xs text-amber-600 font-medium">Locked (Requires Plan)</div>
+              <div className="text-xs text-amber-600 font-medium">Advanced Capabilities (Locked)</div>
             </div>
           </div>
 
-          {/* Analyzer list by category */}
+          {/* Service list by category */}
           <div className="space-y-4">
             {(Object.keys(grouped) as AnalyzerCategory[]).map(category => {
               const analyzers = grouped[category]
@@ -101,14 +111,14 @@ export default function AnalyzerCoveragePanel({ currentPlan }: AnalyzerCoverageP
                           </div>
                           <div className="flex-grow">
                             <div className="font-medium text-gray-900">
-                              {analyzer.id}
-                            </div>
-                            <div className="text-xs text-gray-600 mt-0.5">
-                              {analyzer.description}
+                              {analyzer.service_description}
                             </div>
                             {!isEnabled && (
-                              <div className="text-xs text-amber-600 font-semibold mt-1">
-                                Requires: {getPlanLabel(analyzer.min_plan)}
+                              <div className="flex items-start gap-2 mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                                <Info className="w-3 h-3 text-amber-600 mt-0.5 flex-shrink-0" />
+                                <div className="text-xs text-amber-700">
+                                  <strong>Unlock with {planExperienceMap[analyzer.min_plan]}:</strong> Get deeper {category} insights that catch issues before they impact your team. Upgrade to access advanced intelligence capabilities.
+                                </div>
                               </div>
                             )}
                           </div>
@@ -124,7 +134,7 @@ export default function AnalyzerCoveragePanel({ currentPlan }: AnalyzerCoverageP
           {/* Info banner */}
           <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-4">
             <p className="text-xs text-blue-700">
-              <strong>Note:</strong> Analyzer availability is determined by your subscription plan and recorded immutably in each run.
+              <strong>Immutable Plan Context:</strong> Your AGI's capabilities are locked at run-time and recorded in the governance ledger for complete transparency.
             </p>
           </div>
         </div>

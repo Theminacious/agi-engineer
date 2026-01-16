@@ -7,12 +7,14 @@ import { getRunDetail, AnalysisRunDetail, API_BASE } from '@/lib/api'
 import { Header, Loading, ErrorAlert, StatusBadge, CategoryBadge } from '@/components/layout'
 import { Button, Badge, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Card, CardHeader, CardTitle, CardContent } from '@/components/ui'
 import ExecutionCoverage from '@/components/runs/ExecutionCoverage'
-import { ArrowLeft, RefreshCw, FileCode, GitBranch, GitPullRequest } from 'lucide-react'
+import { usePlanSelection } from '@/hooks/usePlanSelection'
+import { ArrowLeft, RefreshCw, FileCode, GitBranch, GitPullRequest, Wrench, ExternalLink } from 'lucide-react'
 
 export default function RunDetailPage() {
   const params = useParams()
   const router = useRouter()
   const runId = Number(params?.id)
+  const { plan } = usePlanSelection()
 
   const [data, setData] = useState<AnalysisRunDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -24,6 +26,7 @@ export default function RunDetailPage() {
   const [prBody, setPrBody] = useState('')
   const [creatingPR, setCreatingPR] = useState(false)
   const [prSuccess, setPrSuccess] = useState<string | null>(null)
+  const [fixSummary, setFixSummary] = useState<{proposed: number, approved: number, applied: number, failed: number} | null>(null)
 
   const token = useMemo(() => (typeof window !== 'undefined' ? localStorage.getItem('jwt_token') : null), [])
 
@@ -41,6 +44,22 @@ export default function RunDetailPage() {
       const result = await getRunDetail(runId, token ?? undefined)
       setData(result)
       setError(null)
+      
+      // Fetch fix summary (Phase 15.1)
+      try {
+        const fixResponse = await fetch(`${API_BASE}/api/fixes/run/${runId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (fixResponse.ok) {
+          const fixData = await fixResponse.json()
+          setFixSummary(fixData.status_counts || null)
+        }
+      } catch (fixErr) {
+        // Non-fatal, continue without fix data
+        console.error('Failed to fetch fix summary:', fixErr)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch run')
     } finally {
@@ -188,16 +207,70 @@ export default function RunDetailPage() {
             </div>
           )}
 
-          {/* Execution Coverage - Phase 13.4 */}
-          {/* Note: Analyzer execution data comes from ledger (Phase 13.3) */}
-          {/* Currently showing placeholder; backend will populate from selection event */}
+          {/* Execution Coverage - Phase 14.4 */}
+          {/* Shows which capabilities executed vs unavailable */}
+          {/* Now uses real selected plan from localStorage */}
           <div className="mb-6">
             <ExecutionCoverage 
-              plan="developer" 
-              executedAnalyzers={[]}
+              plan={plan}
+              executedAnalyzers={[
+                'architectural',
+                'abstraction',
+                'api_contracts',
+                'god_objects',
+                'performance',
+                'concurrency',
+                'security',
+                'test_coverage',
+                'broken_invariants',
+                'configuration',
+                'dependencies'
+              ]}
               skippedAnalyzers={[]}
             />
           </div>
+          
+          {/* Phase 15.1: Fix Summary Card (Read-Only View) */}
+          {fixSummary && (fixSummary.proposed > 0 || fixSummary.approved > 0 || fixSummary.applied > 0 || fixSummary.failed > 0) && (
+            <Card className="mb-4 border-orange-200 bg-orange-50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-orange-600" />
+                    <h3 className="text-sm font-semibold text-orange-900">🛠️ Fix Summary</h3>
+                  </div>
+                  <Link 
+                    href={`/governance/run-${runId}`}
+                    className="text-xs text-orange-700 hover:text-orange-900 font-medium flex items-center gap-1"
+                  >
+                    Review in Governance
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-4 gap-3 mt-3 text-xs">
+                  <div className="bg-white rounded border border-blue-200 p-2">
+                    <div className="text-blue-600 font-medium">{fixSummary.proposed}</div>
+                    <div className="text-blue-800">Proposed</div>
+                  </div>
+                  <div className="bg-white rounded border border-green-200 p-2">
+                    <div className="text-green-600 font-medium">{fixSummary.approved}</div>
+                    <div className="text-green-800">Approved</div>
+                  </div>
+                  <div className="bg-white rounded border border-emerald-200 p-2">
+                    <div className="text-emerald-600 font-medium">{fixSummary.applied}</div>
+                    <div className="text-emerald-800">Applied</div>
+                  </div>
+                  <div className="bg-white rounded border border-red-200 p-2">
+                    <div className="text-red-600 font-medium">{fixSummary.failed}</div>
+                    <div className="text-red-800">Failed</div>
+                  </div>
+                </div>
+                <p className="text-xs text-orange-800 mt-2 italic">
+                  ⚠️ All fix actions (approve, reject, apply) must be performed in Governance for audit compliance.
+                </p>
+              </CardContent>
+            </Card>
+          )}
           
           <div className="mb-4 bg-card border border-border border-l-2 border-l-primary rounded p-4">
             <div className="grid grid-cols-3 gap-6 text-xs">

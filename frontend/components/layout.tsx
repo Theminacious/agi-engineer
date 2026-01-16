@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui'
+import { usePlanSelection, getPlanExperienceName, getPlanPrice } from '@/hooks/usePlanSelection'
 import { 
   LogOut, 
   Home, 
@@ -19,7 +20,9 @@ import {
   Loader2,
   Info,
   Layers,
-  Shield
+  Shield,
+  Sparkles,
+  Crown
 } from 'lucide-react'
 
 // --- CUSTOM "NEURAL CONSTRUCT" LOGO ---
@@ -64,6 +67,7 @@ export function Header() {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<string | null>(null)
+  const { plan, isLoading: planLoading } = usePlanSelection()
 
   useEffect(() => {
     const token = localStorage.getItem('jwt_token')
@@ -98,6 +102,7 @@ export function Header() {
     { href: '/runs', label: 'Runs & Logs', icon: Layers },
     { href: '/v3-analysis', label: 'AGI Engine', icon: Zap },
     { href: '/governance', label: 'Proof & Governance', icon: Shield },
+    { href: '/plans', label: 'Choose Your AGI', icon: Sparkles },
   ]
 
   if (!user) return null
@@ -118,6 +123,42 @@ export function Header() {
           <ChevronDown className="w-3.5 h-3.5 text-gray-500 group-hover:text-white transition-colors" />
         </button>
       </div>
+
+      {/* Active Plan Indicator (Phase 14.4) */}
+      {!planLoading && (
+        <div className="px-3 pb-3">
+          <Link
+            href="/plans"
+            className="block p-2.5 rounded-md bg-[#0A0A0A] border border-[#1F1F1F] hover:border-[#2A2A2A] transition-colors group"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Crown className={`w-3.5 h-3.5 ${
+                plan === 'developer' ? 'text-blue-500' :
+                plan === 'team' ? 'text-purple-500' :
+                'text-indigo-500'
+              }`} />
+              <span className="text-[10px] font-semibold text-[#666] uppercase tracking-wider">
+                Active Plan
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-medium text-white">
+                {getPlanExperienceName(plan)}
+              </span>
+              <span className={`text-[11px] font-semibold ${
+                plan === 'developer' ? 'text-blue-400' :
+                plan === 'team' ? 'text-purple-400' :
+                'text-indigo-400'
+              }`}>
+                {getPlanPrice(plan)}
+              </span>
+            </div>
+            <p className="text-[10px] text-[#555] mt-1 group-hover:text-[#666] transition-colors">
+              Tap to view or change plan
+            </p>
+          </Link>
+        </div>
+      )}
 
       {/* 2. Navigation (Compact & Minimal) */}
       <nav className="flex-1 px-2 py-4 space-y-0.5">
