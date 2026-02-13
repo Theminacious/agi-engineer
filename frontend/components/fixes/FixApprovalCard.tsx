@@ -19,8 +19,10 @@
 
 import { useState } from 'react'
 import { usePlanSelection } from '@/hooks/usePlanSelection'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
-import { Button, Badge } from '@/components/ui'
+import SectionCard from '@/components/ui/SectionCard'
+import AuditPanel from '@/components/ui/AuditPanel'
+import StatusBadge from '@/components/ui/StatusBadge'
+import { Button } from '@/components/ui'
 import { Check, X, Play, Eye, Lock, AlertCircle, CheckCircle2, XCircle, Sparkles } from 'lucide-react'
 
 interface Fix {
@@ -78,17 +80,7 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
   const canApprove = plan !== 'developer' // Advanced+ can approve
   const canApply = plan !== 'developer'   // Advanced+ can apply
   
-  // Status styling
-  const statusConfig = {
-    proposed: { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: Eye, label: 'Proposed' },
-    approved: { color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle2, label: 'Approved' },
-    rejected: { color: 'bg-red-100 text-red-800 border-red-200', icon: XCircle, label: 'Rejected' },
-    applied: { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: Sparkles, label: 'Applied' },
-    failed: { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: AlertCircle, label: 'Failed' },
-  }
-  
-  const statusInfo = statusConfig[fix.status] || statusConfig.proposed
-  const StatusIcon = statusInfo.icon
+  // Status badge will be rendered using StatusBadge component
   
   // Handlers
   const handleApprove = async () => {
@@ -207,52 +199,47 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
   }
 
   return (
-    <Card className="border-2 hover:shadow-md transition-shadow">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <CardTitle className="text-lg">🤖 AI-Generated Fix #{fix.id}</CardTitle>
-              <Badge className={`${statusInfo.color} flex items-center gap-1 px-2 py-0.5 font-medium border`}>
-                <StatusIcon className="w-3 h-3" />
-                {statusInfo.label}
-              </Badge>
-            </div>
-            {fix.file_path && (
-              <CardDescription className="font-mono text-xs">
-                {fix.file_path}
-              </CardDescription>
-            )}
+    <SectionCard>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-neutral-300">🤖 Fix #{fix.id}</span>
+            <StatusBadge status={fix.status} />
           </div>
+          {fix.file_path && (
+            <div className="font-mono text-xs text-neutral-500 mt-1">
+              {fix.file_path}
+            </div>
+          )}
         </div>
-      </CardHeader>
+      </div>
       
-      <CardContent className="space-y-4">
+      <div className="space-y-2">
         {/* Issue Context */}
         {issue && (
-          <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+          <AuditPanel>
+            <div className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1">
               Fixes Issue
-            </p>
-            <p className="text-sm font-medium text-gray-900">{issue.name}</p>
-            <p className="text-xs text-gray-600 mt-1">{issue.message}</p>
-          </div>
+            </div>
+            <div className="text-sm text-neutral-300">{issue.name}</div>
+            <div className="text-xs text-neutral-500 mt-1">{issue.message}</div>
+          </AuditPanel>
         )}
         
         {/* Explanation */}
         {fix.explanation && (
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-1.5">📝 Explanation:</p>
-            <p className="text-sm text-gray-600 bg-white border border-gray-200 rounded-md p-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1">📝 Explanation</div>
+            <div className="text-sm text-neutral-300 border border-neutral-800 rounded bg-neutral-900/80 p-2">
               {fix.explanation}
-            </p>
+            </div>
           </div>
         )}
         
         {/* Code Preview */}
         <div>
-          <p className="text-sm font-semibold text-gray-700 mb-1.5">💚 Fixed Code:</p>
-          <div className="bg-gray-900 border border-gray-700 rounded-md p-3 overflow-x-auto max-h-64 overflow-y-auto">
+          <div className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1">💚 Fixed Code</div>
+          <div className="bg-neutral-950 border border-neutral-800 rounded p-2 overflow-x-auto max-h-64 overflow-y-auto">
             <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap">
               {fix.fixed_code}
             </pre>
@@ -264,13 +251,13 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
           <div>
             <button
               onClick={() => setShowPatch(!showPatch)}
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700 mb-1.5 flex items-center gap-1"
+              className="text-xs text-blue-400 hover:text-blue-300 mb-1 flex items-center gap-1"
             >
               {showPatch ? '▼' : '▶'} View Patch
             </button>
             {showPatch && (
-              <div className="bg-gray-900 border border-gray-700 rounded-md p-3 overflow-x-auto max-h-48 overflow-y-auto">
-                <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap">
+              <div className="bg-neutral-950 border border-neutral-800 rounded p-2 overflow-x-auto max-h-48 overflow-y-auto">
+                <pre className="text-xs font-mono text-neutral-400 whitespace-pre-wrap">
                   {fix.patch}
                 </pre>
               </div>
@@ -280,88 +267,79 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
         
         {/* Governance Trail */}
         {(fix.approved_by || fix.rejected_by || fix.applied_by) && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-3 space-y-2">
-            <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+          <AuditPanel>
+            <div className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1">
               🔒 Audit Trail
-            </p>
+            </div>
             
             {fix.approved_by && (
-              <div className="text-xs text-blue-800">
+              <div className="text-xs text-neutral-400">
                 <span className="font-medium">Approved by:</span> {fix.approved_by}
                 {fix.approved_at && ` on ${new Date(fix.approved_at).toLocaleString()}`}
                 {fix.approval_plan && (
-                  <Badge className="ml-2 text-[10px] bg-blue-100 text-blue-700 border-blue-300">
-                    {fix.approval_plan}
-                  </Badge>
+                  <span className="ml-2 text-[10px] text-green-400">({fix.approval_plan})</span>
                 )}
               </div>
             )}
             
             {fix.rejected_by && (
-              <div className="text-xs text-red-800">
+              <div className="text-xs text-neutral-400">
                 <span className="font-medium">Rejected by:</span> {fix.rejected_by}
                 {fix.rejected_at && ` on ${new Date(fix.rejected_at).toLocaleString()}`}
                 {fix.rejection_reason && (
-                  <p className="mt-1 italic text-red-700">"{fix.rejection_reason}"</p>
+                  <div className="mt-1 italic text-neutral-500">"{fix.rejection_reason}"</div>
                 )}
               </div>
             )}
             
             {fix.applied_by && (
-              <div className="text-xs text-green-800">
+              <div className="text-xs text-neutral-400">
                 <span className="font-medium">Applied by:</span> {fix.applied_by}
                 {fix.applied_at && ` on ${new Date(fix.applied_at).toLocaleString()}`}
                 {fix.application_plan && (
-                  <Badge className="ml-2 text-[10px] bg-green-100 text-green-700 border-green-300">
-                    {fix.application_plan}
-                  </Badge>
+                  <span className="ml-2 text-[10px] text-emerald-400">({fix.application_plan})</span>
                 )}
               </div>
             )}
-          </div>
+          </AuditPanel>
         )}
         
         {/* Error Display */}
         {fix.application_error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-3">
-            <p className="text-xs font-semibold text-red-900 mb-1">⚠️ Application Failed</p>
-            <p className="text-xs text-red-800 font-mono">{fix.application_error}</p>
-          </div>
+          <AuditPanel className="border-red-700">
+            <div className="text-xs font-medium text-red-400 mb-1">⚠️ Application Failed</div>
+            <div className="text-xs text-red-500 font-mono">{fix.application_error}</div>
+          </AuditPanel>
         )}
         
         {/* Actions */}
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-800">
           {/* Proposed: Show Approve/Reject */}
           {fix.status === 'proposed' && (
             <>
               {canApprove ? (
                 <>
-                  <Button
+                  <button
                     onClick={handleApprove}
                     disabled={loading}
-                    className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-1.5"
-                    size="sm"
+                    className="px-2 py-1 bg-green-700 hover:bg-green-600 text-neutral-100 rounded text-xs flex items-center gap-1 disabled:opacity-50"
                   >
-                    <Check className="w-4 h-4" />
-                    Approve Fix
-                  </Button>
-                  <Button
+                    <Check className="w-3 h-3" />
+                    Approve
+                  </button>
+                  <button
                     onClick={() => setShowRejectDialog(true)}
                     disabled={loading}
-                    variant="outline"
-                    className="border-red-300 text-red-700 hover:bg-red-50 flex items-center gap-1.5"
-                    size="sm"
+                    className="px-2 py-1 border border-red-700 text-red-400 hover:bg-red-900/20 rounded text-xs flex items-center gap-1 disabled:opacity-50"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3 h-3" />
                     Reject
-                  </Button>
+                  </button>
                 </>
               ) : (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded px-3 py-2">
-                  <Lock className="w-4 h-4" />
-                  <span>
-                    Upgrade to <span className="font-semibold text-purple-600">Advanced Engineer</span> to approve fixes
-                  </span>
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <Lock className="w-3 h-3" />
+                  <span>Advanced plan required</span>
                 </div>
               )}
             </>
@@ -372,32 +350,27 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
             <>
               {canApply ? (
                 <>
-                  <Button
+                  <button
                     onClick={() => handleApply(false)}
                     disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5"
-                    size="sm"
+                    className="px-2 py-1 bg-blue-700 hover:bg-blue-600 text-neutral-100 rounded text-xs flex items-center gap-1 disabled:opacity-50"
                   >
-                    <Play className="w-4 h-4" />
-                    Apply Fix
-                  </Button>
-                  <Button
+                    <Play className="w-3 h-3" />
+                    Apply
+                  </button>
+                  <button
                     onClick={() => handleApply(true)}
                     disabled={loading}
-                    variant="outline"
-                    className="flex items-center gap-1.5"
-                    size="sm"
+                    className="px-2 py-1 border border-neutral-700 text-neutral-400 hover:bg-neutral-800 rounded text-xs flex items-center gap-1 disabled:opacity-50"
                   >
-                    <Eye className="w-4 h-4" />
-                    Validate (Dry Run)
-                  </Button>
+                    <Eye className="w-3 h-3" />
+                    Validate
+                  </button>
                 </>
               ) : (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded px-3 py-2">
-                  <Lock className="w-4 h-4" />
-                  <span>
-                    Upgrade to <span className="font-semibold text-purple-600">Advanced Engineer</span> to apply fixes
-                  </span>
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <Lock className="w-3 h-3" />
+                  <span>Advanced plan required</span>
                 </div>
               )}
             </>
@@ -405,59 +378,58 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
           
           {/* Applied: Show Success */}
           {fix.status === 'applied' && (
-            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-              <Sparkles className="w-4 h-4" />
-              <span className="font-medium">Fix successfully applied to codebase</span>
+            <div className="flex items-center gap-1 text-xs text-emerald-400">
+              <Sparkles className="w-3 h-3" />
+              <span>Applied to codebase</span>
             </div>
           )}
           
           {/* Rejected: Show Reason */}
           {fix.status === 'rejected' && (
-            <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2 w-full">
-              <XCircle className="w-4 h-4" />
-              <span className="font-medium">Fix rejected</span>
+            <div className="flex items-center gap-1 text-xs text-red-400">
+              <XCircle className="w-3 h-3" />
+              <span>Rejected</span>
             </div>
           )}
         </div>
         
         {/* Reject Dialog */}
         {showRejectDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Reject Fix</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Please provide a reason for rejecting this fix (optional):
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 max-w-md w-full mx-4">
+              <h3 className="text-sm font-medium text-neutral-100 mb-2">Reject Fix</h3>
+              <p className="text-xs text-neutral-400 mb-2">
+                Provide a reason for rejecting this fix (optional):
               </p>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="e.g., Introduces breaking changes, incorrect fix logic..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full px-2 py-2 bg-neutral-950 border border-neutral-800 rounded text-xs text-neutral-300 resize-none h-20 focus:outline-none focus:border-red-700"
               />
-              <div className="flex gap-2 mt-4">
-                <Button
+              <div className="flex gap-2 mt-2">
+                <button
                   onClick={handleReject}
                   disabled={loading}
-                  className="bg-red-600 hover:bg-red-700 text-white flex-1"
+                  className="flex-1 px-2 py-1 bg-red-700 hover:bg-red-600 text-neutral-100 rounded text-xs disabled:opacity-50"
                 >
                   Confirm Rejection
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={() => {
                     setShowRejectDialog(false)
                     setRejectReason('')
                   }}
-                  variant="outline"
                   disabled={loading}
-                  className="flex-1"
+                  className="flex-1 px-2 py-1 border border-neutral-700 text-neutral-400 hover:bg-neutral-800 rounded text-xs disabled:opacity-50"
                 >
                   Cancel
-                </Button>
+                </button>
               </div>
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
   )
 }

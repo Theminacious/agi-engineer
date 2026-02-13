@@ -1,25 +1,46 @@
-import { listAvailableRuns } from '@/lib/ledgerReader'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { listAvailableRuns, LedgerMetadata } from '@/lib/ledgerReader'
+import { AppShell, Loading, ErrorAlert } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
-import Link from 'next/link'
-import GovernanceIntro from '@/components/governance/GovernanceIntro'
-import ReadOnlyBadge from '@/components/governance/ReadOnlyBadge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { 
+  Archive, 
   GitBranch, 
-  Calendar, 
-  Clock, 
-  CheckCircle2, 
-  XCircle,
-  Archive
+  Clock,
+  AlertCircle,
+  ShieldCheck
 } from 'lucide-react'
 
-export const metadata = {
-  title: 'Proof & Governance | AGI Engineer',
-  description: 'Read-only governance dashboard with immutable run ledgers and deterministic replay'
-}
+export default function GovernancePage() {
+  const router = useRouter()
+  const [runs, setRuns] = useState<LedgerMetadata[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-export default async function GovernancePage() {
-  const runs = await listAvailableRuns()
+  useEffect(() => {
+    const token = localStorage.getItem('jwt_token')
+    if (!token) {
+      router.push('/auth')
+      return
+    }
+    fetchRuns()
+  }, [router])
+
+  const fetchRuns = async () => {
+    try {
+      setLoading(true)
+      const data = await listAvailableRuns()
+      setRuns(data)
+      setError(null)
+    } catch (err) {
+      setError((err as Error).message || 'Failed to fetch governance data')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const formatTimestamp = (ts: string) => {
     const date = new Date(ts)
@@ -42,120 +63,128 @@ export default async function GovernancePage() {
     return `${mins}m ${secs}s`
   }
 
-  const stateColors: Record<string, string> = {
-    COMPLETE: 'bg-green-100 text-green-700 border-green-300',
-    INCOMPLETE: 'bg-amber-100 text-amber-700 border-amber-300',
-    ABORTED: 'bg-red-100 text-red-700 border-red-300',
-    REJECTED: 'bg-red-100 text-red-700 border-red-300'
+  const getStateColor = (state: string): string => {
+    switch (state) {
+      case 'COMPLETE': return 'text-green-400'
+      case 'INCOMPLETE': return 'text-amber-400'
+      case 'ABORTED':
+      case 'REJECTED': return 'text-red-400'
+      default: return 'text-muted-foreground'
+    }
+  }
+
+  if (loading) {
+    return (
+      <AppShell>
+        <Loading />
+      </AppShell>
+    )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+    <AppShell>
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Proof & Governance</h1>
-          <p className="text-gray-600 mt-1">
-            Immutable run ledgers and deterministic replay for compliance & trust
-          </p>
-        </div>
-        <ReadOnlyBadge variant="lock" text="Immutable Dashboard" className="text-sm px-4 py-2" />
-      </div>
-
-      {/* Introduction Section */}
-      <GovernanceIntro />
-
-      {/* Available Runs */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Archive className="w-5 h-5" />
-            Available Frozen Runs
-            <Badge variant="outline" className="ml-2">
-              {runs.length} Run{runs.length !== 1 ? 's' : ''}
+          <div className="flex items-center gap-2 mb-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Proof & Governance</h1>
+            <Badge variant="outline" className="text-xs">
+              <Archive className="w-3 h-3 mr-1" />
+              Read-only
             </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </div>
+          <p className="text-sm text-muted-foreground">Immutable run ledgers for compliance and audit</p>
+        </div>
+
+        {error && <ErrorAlert message={error} />}
+
+        {/* Introduction */}
+        <div className="border border-border rounded p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="p-2 border border-border rounded">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <h2 className="text-lg font-semibold">Deterministic Replay & Audit Trail</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                This dashboard provides read-only access to frozen run ledgers. Each ledger captures the complete execution history, 
+                enabling deterministic replay and compliance verification. You cannot trigger executions or modify state from here.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <AlertCircle className="w-4 h-4" />
+                <span>To execute runs, use the <span className="text-foreground">Dashboard → Runs</span> section</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Runs Table */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Frozen Runs</h2>
+            <span className="text-xs text-muted-foreground">{runs.length} total</span>
+          </div>
+
           {runs.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Archive className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-              <p>No frozen runs available yet.</p>
-              <p className="text-sm mt-1">Complete a run with ledger enabled to see it here.</p>
+            <div className="border border-border rounded p-12 text-center">
+              <Archive className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground">No frozen runs available yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Complete a run with ledger enabled to see it here</p>
             </div>
           ) : (
-            runs.map((run) => (
-              <Link 
-                key={run.run_id}
-                href={`/governance/${run.run_id}`}
-                className="block"
-              >
-                <Card className="hover:shadow-md transition-shadow cursor-pointer border-2 hover:border-blue-300">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-lg font-semibold text-gray-900 font-mono">
-                            {run.run_id}
-                          </h3>
-                          <Badge className={stateColors[run.final_state] || 'bg-gray-100'}>
-                            {run.final_state}
-                          </Badge>
-                          <ReadOnlyBadge variant="archive" text="Frozen" />
+            <div className="border border-border rounded">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Run ID</TableHead>
+                    <TableHead>Branch</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead>Policy</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead className="text-right">Duration</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {runs.map((run) => (
+                    <TableRow 
+                      key={run.run_id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => router.push(`/governance/${run.run_id}`)}
+                    >
+                      <TableCell className="font-mono font-medium">{run.run_id}</TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <GitBranch className="w-3 h-3" />
+                          {run.branch}
                         </div>
-                        
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <GitBranch className="w-4 h-4" />
-                            <span className="font-mono">{run.branch}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`text-sm font-medium ${getStateColor(run.final_state)}`}>
+                          {run.final_state}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{run.policy}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatTimestamp(run.started_at)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                        {run.ended_at ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDuration(run.started_at, run.ended_at)}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{formatTimestamp(run.started_at)}</span>
-                          </div>
-                          {run.ended_at && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-4 h-4" />
-                              <span>{formatDuration(run.started_at, run.ended_at)}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {run.final_state === 'COMPLETE' ? (
-                          <CheckCircle2 className="w-6 h-6 text-green-600" />
                         ) : (
-                          <XCircle className="w-6 h-6 text-red-600" />
+                          '-'
                         )}
-                      </div>
-                    </div>
-
-                    <div className="text-xs text-gray-500 font-mono bg-gray-50 p-2 rounded">
-                      {run.repository_url}
-                    </div>
-
-                    <div className="mt-2 text-xs text-gray-500">
-                      Policy: <span className="font-mono text-gray-700">{run.policy}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Footer Notice */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="p-4">
-          <p className="text-sm text-blue-900">
-            <strong>📌 Important:</strong> This dashboard is READ-ONLY by design. 
-            You cannot trigger executions, approve plans, or modify any state from here. 
-            To execute runs, use the main Dashboard → Runs section.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </AppShell>
   )
 }

@@ -12,7 +12,7 @@
 
 import { useState } from 'react'
 import { FixApprovalCard } from './FixApprovalCard'
-import { Badge } from '@/components/ui'
+import StatusBadge from '@/components/ui/StatusBadge'
 import { Eye, CheckCircle2, XCircle, Sparkles, AlertCircle } from 'lucide-react'
 
 interface Fix {
@@ -56,44 +56,43 @@ export function FixListView({ fixes, onApprove, onReject, onApply }: FixListView
   
   // Status config
   const statusFilters = [
-    { key: 'all', label: 'All', count: fixes.length, icon: null, color: 'bg-gray-100 text-gray-800' },
-    { key: 'proposed', label: 'Proposed', count: statusCounts.proposed || 0, icon: Eye, color: 'bg-blue-100 text-blue-800' },
-    { key: 'approved', label: 'Approved', count: statusCounts.approved || 0, icon: CheckCircle2, color: 'bg-green-100 text-green-800' },
-    { key: 'applied', label: 'Applied', count: statusCounts.applied || 0, icon: Sparkles, color: 'bg-emerald-100 text-emerald-800' },
-    { key: 'rejected', label: 'Rejected', count: statusCounts.rejected || 0, icon: XCircle, color: 'bg-red-100 text-red-800' },
-    { key: 'failed', label: 'Failed', count: statusCounts.failed || 0, icon: AlertCircle, color: 'bg-orange-100 text-orange-800' },
+    { key: 'all', label: 'All', count: fixes.length, icon: null },
+    { key: 'proposed', label: 'Proposed', count: statusCounts.proposed || 0, icon: Eye },
+    { key: 'approved', label: 'Approved', count: statusCounts.approved || 0, icon: CheckCircle2 },
+    { key: 'applied', label: 'Applied', count: statusCounts.applied || 0, icon: Sparkles },
+    { key: 'rejected', label: 'Rejected', count: statusCounts.rejected || 0, icon: XCircle },
+    { key: 'failed', label: 'Failed', count: statusCounts.failed || 0, icon: AlertCircle },
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Status Filter Tabs */}
       <div className="flex flex-wrap gap-2">
-        {statusFilters.map(({ key, label, count, icon: Icon, color }) => (
+        {statusFilters.map(({ key, label, count, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setFilter(key)}
             className={`
-              px-3 py-1.5 rounded-md text-sm font-medium transition-colors
-              flex items-center gap-1.5 border
-              ${filter === key 
-                ? `${color} border-current` 
-                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              px-2 py-1 rounded text-xs font-medium transition-colors
+              flex items-center gap-1 border
+              ${
+                filter === key
+                  ? 'bg-neutral-800 text-neutral-100 border-neutral-700'
+                  : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:bg-neutral-850'
               }
             `}
           >
-            {Icon && <Icon className="w-3.5 h-3.5" />}
+            {Icon && <Icon className="w-3 h-3" />}
             <span>{label}</span>
-            <Badge className="ml-1 text-xs bg-white/30 text-inherit border-white/20">
-              {count}
-            </Badge>
+            <span className="ml-1 text-[10px] opacity-70">({count})</span>
           </button>
         ))}
       </div>
       
       {/* Fixes List */}
       {filteredFixes.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-          <p className="text-gray-500 text-sm">
+        <div className="text-center py-8 border border-dashed border-neutral-800 rounded-lg">
+          <p className="text-neutral-500 text-xs">
             {filter === 'all' 
               ? 'No fixes generated yet' 
               : `No ${filter} fixes`
@@ -101,7 +100,7 @@ export function FixListView({ fixes, onApprove, onReject, onApply }: FixListView
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {filteredFixes.map((fix) => (
             <FixApprovalCard
               key={fix.id}

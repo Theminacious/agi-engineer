@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Header, Loading, ErrorAlert } from '@/components/layout'
-import { Badge, Card, CardHeader, CardTitle, CardContent, Button } from '@/components/ui'
+import { AppShell, Loading, ErrorAlert } from '@/components/layout'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Clock, Plus, Trash2, Play } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -24,7 +26,6 @@ export default function SchedulingPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({ interval_hours: 24 })
-  const [repositories, setRepositories] = useState<any[]>([])
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('jwt_token') : null
 
@@ -48,23 +49,6 @@ export default function SchedulingPage() {
       setError(err instanceof Error ? err.message : 'Failed to fetch schedules')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleAddSchedule = async (repoId: number, intervalHours: number) => {
-    try {
-      const headers = getHeaders()
-      const res = await fetch(
-        `${API_BASE}/api/schedule/repositories/${repoId}/schedule?interval_hours=${intervalHours}`,
-        { method: 'POST', headers }
-      )
-      
-      if (!res.ok) throw new Error('Failed to add schedule')
-      
-      await fetchSchedules()
-      setShowForm(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add schedule')
     }
   }
 
@@ -110,44 +94,91 @@ export default function SchedulingPage() {
     fetchSchedules()
   }, [token, router])
 
-  if (loading) return (
-    <>
-      <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"><Loading /></main>
-    </>
-  )
+  if (loading) {
+    return (
+      <AppShell>
+        <Loading />
+      </AppShell>
+    )
+  }
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <Clock className="w-6 h-6 text-gray-400" />
-                <h1 className="text-3xl font-bold text-gray-900">Analysis Scheduling</h1>
-              </div>
-              <p className="text-gray-600">Set up recurring code analysis for your repositories</p>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                onClick={handleRunNow}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Play className="w-4 h-4" />
-                Run Due Now
-              </Button>
-              <Button
-                onClick={() => setShowForm(!showForm)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Plus className="w-4 h-4" />
-                Add Schedule
-              </Button>
-            </div>
+    <AppShell>
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Analysis Scheduling</h1>
+            <p className="text-sm text-muted-foreground mt-1">Set up recurring code analysis for your repositories</p>
           </div>
+          <div className="flex gap-2">
+            <Button onClick={handleRunNow} variant="outline">
+              <Play className="w-4 h-4 mr-2" />
+              Run Due Now
+            </Button>
+            <Button onClick={() => setShowForm(!showForm)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Schedule
+            </Button>
+          </div>
+        </div>
+
+        {error && <ErrorAlert message={error} />}
+
+        {/* Schedules Table */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Active Schedules</h2>
+          {schedules.length === 0 ? (
+            <div className="border border-border rounded p-12 text-center">
+              <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground">No schedules configured yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Add a schedule to automate analysis runs</p>
+            </div>
+          ) : (
+            <div className="border border-border rounded">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Repository</TableHead>
+                    <TableHead>Interval</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Next Run</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {schedules.map((schedule) => (
+                    <TableRow key={schedule.repository_id}>
+                      <TableCell className="font-medium">{schedule.repository_name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">Every {schedule.interval_hours}h</TableCell>
+                      <TableCell>
+                        <Badge variant={schedule.enabled ? 'default' : 'secondary'}>
+                          {schedule.enabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(schedule.next_run).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveSchedule(schedule.repository_id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      </div>
+    </AppShell>
+  )
+}
 
           {error && <div className="mb-6"><ErrorAlert message={error} /></div>}
 

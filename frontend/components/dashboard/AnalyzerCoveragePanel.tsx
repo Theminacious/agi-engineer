@@ -14,7 +14,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui'
 import { 
   getAllAnalyzers, 
   getAnalyzersForPlan, 
@@ -25,6 +24,7 @@ import {
   type AnalyzerCategory,
 } from '@/lib/analyzerRegistry'
 import { Lock, CheckCircle2, Info } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 interface AnalyzerCoveragePanelProps {
   currentPlan: PlanType | null
@@ -50,95 +50,65 @@ export default function AnalyzerCoveragePanel({ currentPlan }: AnalyzerCoverageP
   const currentPlanLabel = currentPlan ? planExperienceMap[currentPlan] : 'Unknown'
 
   return (
-    <Card className="border-l-4 border-l-blue-500">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Your AGI's Intelligence</CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs font-medium">
-              Experience: {currentPlanLabel}
-            </Badge>
-            <Badge variant="default" className="text-xs font-medium bg-blue-600">
-              {enabledCount}/{totalAnalyzers} Capabilities Active
-            </Badge>
-          </div>
+    <div className="space-y-6">
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="text-center">
+          <div className="text-2xl font-semibold text-green-600">{enabledCount}</div>
+          <div className="text-sm text-muted-foreground">Active</div>
         </div>
-      </CardHeader>
-      
-      <CardContent>
-        <div className="space-y-4">
-          {/* Summary stats */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-green-50 border border-green-200 rounded p-3">
-              <div className="text-2xl font-bold text-green-700">{enabledCount}</div>
-              <div className="text-xs text-green-600 font-medium">Active Capabilities</div>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 rounded p-3">
-              <div className="text-2xl font-bold text-amber-700">{totalAnalyzers - enabledCount}</div>
-              <div className="text-xs text-amber-600 font-medium">Advanced Capabilities (Locked)</div>
-            </div>
-          </div>
+        <div className="text-center">
+          <div className="text-2xl font-semibold text-amber-600">{totalAnalyzers - enabledCount}</div>
+          <div className="text-sm text-muted-foreground">Requires Upgrade</div>
+        </div>
+      </div>
 
-          {/* Service list by category */}
-          <div className="space-y-4">
-            {(Object.keys(grouped) as AnalyzerCategory[]).map(category => {
-              const analyzers = grouped[category]
-              if (analyzers.length === 0) return null
+      {/* Service list by category */}
+      <div className="space-y-4">
+        {(Object.keys(grouped) as AnalyzerCategory[]).map(category => {
+          const analyzers = grouped[category]
+          if (analyzers.length === 0) return null
 
-              return (
-                <div key={category}>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                    {getCategoryLabel(category)}
-                  </h4>
-                  <div className="space-y-2 pl-2">
-                    {analyzers.map(analyzer => {
-                      const isEnabled = availableForPlan.has(analyzer.id)
-                      return (
-                        <div 
-                          key={analyzer.id} 
-                          className={`flex items-start gap-3 p-2 rounded text-sm ${
-                            isEnabled 
-                              ? 'bg-green-50 border border-green-100' 
-                              : 'bg-gray-50 border border-gray-200'
-                          }`}
-                        >
-                          <div className="flex-shrink-0 mt-0.5">
-                            {isEnabled ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <Lock className="w-4 h-4 text-gray-400" />
-                            )}
-                          </div>
-                          <div className="flex-grow">
-                            <div className="font-medium text-gray-900">
-                              {analyzer.service_description}
-                            </div>
-                            {!isEnabled && (
-                              <div className="flex items-start gap-2 mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                                <Info className="w-3 h-3 text-amber-600 mt-0.5 flex-shrink-0" />
-                                <div className="text-xs text-amber-700">
-                                  <strong>Unlock with {planExperienceMap[analyzer.min_plan]}:</strong> Get deeper {category} insights that catch issues before they impact your team. Upgrade to access advanced intelligence capabilities.
-                                </div>
-                              </div>
-                            )}
-                          </div>
+          return (
+            <div key={category}>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                {getCategoryLabel(category)}
+              </h4>
+              <div className="space-y-2">
+                {analyzers.map(analyzer => {
+                  const isEnabled = availableForPlan.has(analyzer.id)
+                  return (
+                    <div 
+                      key={analyzer.id} 
+                      className="flex items-start gap-3 p-3 rounded-md border bg-card"
+                    >
+                      <div className="flex-shrink-0 mt-0.5">
+                        {isEnabled ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <Lock className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-grow">
+                        <div className="font-medium text-sm">
+                          {analyzer.service_description}
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Info banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-4">
-            <p className="text-xs text-blue-700">
-              <strong>Immutable Plan Context:</strong> Your AGI's capabilities are locked at run-time and recorded in the governance ledger for complete transparency.
-            </p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+                        {!isEnabled && (
+                          <div className="flex items-start gap-1 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              Requires {planExperienceMap[analyzer.min_plan]}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }

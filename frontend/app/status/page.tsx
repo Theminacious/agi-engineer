@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Header, Loading, ErrorAlert } from '@/components/layout'
-import { Badge, Card, CardHeader, CardTitle, CardContent, Button, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui'
+import { AppShell, Loading, ErrorAlert } from '@/components/layout'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { healthCheck } from '@/lib/api'
 
 type RouteStatus = {
@@ -26,7 +28,6 @@ export default function StatusPage() {
       try {
         setLoading(true)
 
-        // Backend health
         try {
           const res = await healthCheck()
           setBackend({ ok: true, status: res.status, version: (res as any).version })
@@ -34,7 +35,6 @@ export default function StatusPage() {
           setBackend({ ok: false })
         }
 
-        // Frontend routes
         const routeChecks: RouteStatus[] = []
         for (const path of FRONTEND_ROUTES) {
           try {
@@ -56,101 +56,93 @@ export default function StatusPage() {
     runChecks()
   }, [])
 
-  if (loading) return (
-    <div>
-      <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  if (loading) {
+    return (
+      <AppShell>
         <Loading />
-      </main>
-    </div>
-  )
+      </AppShell>
+    )
+  }
 
   return (
-    <div>
-      <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">System Status</h1>
+    <AppShell>
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">System Status</h1>
+            <p className="text-sm text-muted-foreground mt-1">Health check for backend and frontend routes</p>
+          </div>
           <Link href="/">
-            <Button variant="ghost">Back to Home</Button>
+            <Button variant="outline">Back to Home</Button>
           </Link>
         </div>
 
         {error && <ErrorAlert message={error} />}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Backend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <Badge className={backend?.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                  {backend?.ok ? 'Healthy' : 'Unavailable'}
-                </Badge>
-                <span className="text-sm text-gray-600">API URL: {apiUrl}</span>
-              </div>
-              {backend?.ok && (
-                <p className="mt-2 text-sm text-gray-600">Version: {backend.version || 'unknown'}</p>
-              )}
-              <div className="mt-4">
-                <Link href="/docs">
-                  <Button variant="outline">Open API Docs</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-6">
+          {/* Backend */}
+          <div className="border border-border rounded p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Backend</h2>
+            <div className="flex items-center gap-3">
+              <Badge variant={backend?.ok ? 'default' : 'destructive'}>
+                {backend?.ok ? 'Healthy' : 'Unavailable'}
+              </Badge>
+              <span className="text-sm text-muted-foreground">API URL: {apiUrl}</span>
+            </div>
+            {backend?.ok && (
+              <p className="text-sm text-muted-foreground">Version: {backend.version || 'unknown'}</p>
+            )}
+            <div>
+              <Link href="/docs">
+                <Button variant="outline" size="sm">Open API Docs</Button>
+              </Link>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Frontend Routes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Route</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>HTTP</TableHead>
+          {/* Frontend Routes */}
+          <div className="border border-border rounded p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Frontend Routes</h2>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Route</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">HTTP</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {routes.map((r) => (
+                  <TableRow key={r.path}>
+                    <TableCell>
+                      <Link href={r.path} className="text-primary hover:underline text-sm">
+                        {r.path}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={r.ok ? 'default' : 'destructive'} className="text-xs">
+                        {r.ok ? 'OK' : 'Error'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">
+                      {r.status ?? '—'}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {routes.map((r) => (
-                    <TableRow key={r.path}>
-                      <TableCell>
-                        <Link href={r.path} className="text-blue-600 hover:underline">{r.path}</Link>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={r.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                          {r.ok ? 'OK' : 'Error'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">{r.status ?? '—'}</span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
 
-        <div className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-disc pl-5 text-sm text-gray-700 space-y-2">
-                <li>If a route shows Error, clear the Next.js cache: `rm -rf .next` and restart dev server.</li>
-                <li>Ensure backend is running on {apiUrl}. You can start it via Uvicorn.</li>
-                <li>Set `NEXT_PUBLIC_API_URL` in `.env.local` if your backend URL differs.</li>
-              </ul>
-            </CardContent>
-          </Card>
+        {/* Notes */}
+        <div className="border border-border rounded p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Notes</h2>
+          <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-2">
+            <li>If a route shows Error, clear the Next.js cache: <code className="text-xs">rm -rf .next</code> and restart dev server</li>
+            <li>Ensure backend is running on {apiUrl}. Start it via Uvicorn</li>
+            <li>Set <code className="text-xs">NEXT_PUBLIC_API_URL</code> in <code className="text-xs">.env.local</code> if your backend URL differs</li>
+          </ul>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

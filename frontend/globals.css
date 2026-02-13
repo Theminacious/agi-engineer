@@ -4,50 +4,26 @@
 
 @layer base {
   :root {
-    /* Pieces-style dark-first theme */
-    --background: 0 0% 5%;           /* #0d0d0d - near black */
-    --foreground: 0 0% 96%;          /* #f5f5f5 - off-white text */
-    --card: 0 0% 9%;                 /* #171717 - dark card surface */
-    --card-foreground: 0 0% 96%;     /* #f5f5f5 */
-    --popover: 0 0% 9%;              /* #171717 */
-    --popover-foreground: 0 0% 96%;  /* #f5f5f5 */
-    --muted: 0 0% 12%;               /* #1f1f1f - muted surface */
-    --muted-foreground: 0 0% 64%;    /* #a3a3a3 - muted text */
-    --accent: 217 91% 60%;           /* #3b82f6 - blue accent */
-    --accent-foreground: 0 0% 100%;  /* white */
-    --destructive: 0 84% 60%;        /* red */
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 16%;              /* #2a2a2a - subtle border */
-    --input: 0 0% 16%;               /* #2a2a2a */
-    --primary: 217 91% 60%;          /* #3b82f6 - blue primary */
-    --primary-foreground: 0 0% 100%; /* white */
-    --secondary: 0 0% 12%;           /* #1f1f1f */
-    --secondary-foreground: 0 0% 96%;/* #f5f5f5 */
-    --ring: 217 91% 60%;             /* blue focus ring */
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    /* Same as :root for consistency */
-    --background: 0 0% 5%;
-    --foreground: 0 0% 96%;
-    --card: 0 0% 9%;
-    --card-foreground: 0 0% 96%;
-    --popover: 0 0% 9%;
-    --popover-foreground: 0 0% 96%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 64%;
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
-    --primary: 217 91% 60%;
+    --background: 218 24% 6%;        /* #0B0F14 */
+    --foreground: 215 20% 93%;       /* #E6EDF3 */
+    --card: 220 20% 8%;              /* #0F141A */
+    --card-foreground: 215 20% 93%;  /* #E6EDF3 */
+    --popover: 220 20%8%;          /* #0F141A */
+    --popover-foreground: 215 20% 93%;
+    --primary: 239 84% 60%;          /* #4F46E5 - Indigo */
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 96%;
-    --ring: 217 91% 60%;
+    --secondary: 217 18% 13%;        /* #151B23 */
+    --secondary-foreground: 215 20% 93%;
+    --muted: 217 18% 13%;            /* #151B23 */
+    --muted-foreground: 213 14% 62%; /* #9DA7B3 */
+    --accent: 239 84% 60%;           /* #4F46E5 */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 17% 18%;           /* #222A35 */
+    --input: 216 17% 18%;
+    --ring: 239 84% 60%;
+    --radius: 0.375rem;
   }
 }
 
@@ -56,6 +32,6 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 }

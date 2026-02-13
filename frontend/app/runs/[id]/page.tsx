@@ -4,11 +4,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getRunDetail, AnalysisRunDetail, API_BASE } from '@/lib/api'
-import { Header, Loading, ErrorAlert, StatusBadge, CategoryBadge } from '@/components/layout'
-import { Button, Badge, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, Card, CardHeader, CardTitle, CardContent } from '@/components/ui'
+import { AppShell, Loading, ErrorAlert, StatusBadge, CategoryBadge } from '@/components/layout'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import ExecutionCoverage from '@/components/runs/ExecutionCoverage'
 import { usePlanSelection } from '@/hooks/usePlanSelection'
-import { ArrowLeft, RefreshCw, FileCode, GitBranch, GitPullRequest, Wrench, ExternalLink } from 'lucide-react'
+import { ArrowLeft, RefreshCw, FileCode, GitBranch, GitPullRequest, Wrench, ExternalLink, CheckCircle2 } from 'lucide-react'
 
 export default function RunDetailPage() {
   const params = useParams()
@@ -32,7 +39,6 @@ export default function RunDetailPage() {
 
   const parseDateUtc = (value?: string | null) => {
     if (!value) return null
-    // If the backend sent a naive timestamp, treat it as UTC
     const normalized = value.endsWith('Z') ? value : `${value}Z`
     const dt = new Date(normalized)
     return Number.isNaN(dt.getTime()) ? null : dt
@@ -45,7 +51,6 @@ export default function RunDetailPage() {
       setData(result)
       setError(null)
       
-      // Fetch fix summary (Phase 15.1)
       try {
         const fixResponse = await fetch(`${API_BASE}/api/fixes/run/${runId}`, {
           headers: {
@@ -57,7 +62,6 @@ export default function RunDetailPage() {
           setFixSummary(fixData.status_counts || null)
         }
       } catch (fixErr) {
-        // Non-fatal, continue without fix data
         console.error('Failed to fetch fix summary:', fixErr)
       }
     } catch (err) {
@@ -74,7 +78,6 @@ export default function RunDetailPage() {
       return
     }
     fetchDetail()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId])
 
   const fixedCount = data?.results.filter(r => r.is_fixed).length || 0
@@ -113,7 +116,6 @@ export default function RunDetailPage() {
       })
       
       if (!response.ok) {
-        // Gracefully handle non-JSON error responses (e.g., HTML error pages)
         const contentType = response.headers.get('content-type') || ''
         if (contentType.includes('application/json')) {
           const errorData = await response.json()
@@ -130,7 +132,6 @@ export default function RunDetailPage() {
       setPrTitle('')
       setPrBody('')
       
-      // Refresh data after a delay
       setTimeout(() => {
         fetchDetail()
       }, 2000)
@@ -142,35 +143,33 @@ export default function RunDetailPage() {
     }
   }
 
-  if (loading) return (
-    <>
-      <Header />
-      <main className="px-6 py-6"><Loading /></main>
-    </>
-  )
+  if (loading) {
+    return (
+      <AppShell>
+        <Loading />
+      </AppShell>
+    )
+  }
 
-  if (error) return (
-    <>
-      <Header />
-      <main className="px-6 py-6">
-        <div className="mb-4">
+  if (error) {
+    return (
+      <AppShell>
+        <div className="max-w-7xl mx-auto px-6 py-8 space-y-4">
           <Link href="/runs" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to Runs
           </Link>
+          <ErrorAlert message={error} />
         </div>
-        <ErrorAlert message={error} />
-      </main>
-    </>
-  )
+      </AppShell>
+    )
+  }
 
   return (
-    <>
-      <Header />
-      <main className="min-h-screen bg-background">
-        <div className="px-6 py-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4">
+    <AppShell>
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/runs" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -181,37 +180,28 @@ export default function RunDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={fetchDetail}
-                disabled={refreshing}
-                className="px-3 py-1.5 bg-muted hover:bg-card border border-border text-foreground rounded text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
+              <Button variant="outline" size="icon" onClick={fetchDetail} disabled={refreshing}>
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
               {fixedCount > 0 && (
-                <button
-                  onClick={() => setShowPRModal(true)}
-                  className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded text-sm transition-colors flex items-center gap-2"
-                >
-                  <GitPullRequest className="w-3.5 h-3.5" />
+                <Button onClick={() => setShowPRModal(true)}>
+                  <GitPullRequest className="w-4 h-4 mr-2" />
                   Create PR ({fixedCount})
-                </button>
+                </Button>
               )}
             </div>
           </div>
 
-          {/* Summary info */}
-          {prSuccess && (
-            <div className="mb-4 bg-card border border-primary rounded p-3 text-sm text-foreground">
-              {prSuccess}
-            </div>
-          )}
+        {/* Success message */}
+        {prSuccess && (
+          <div className="border border-green-500/20 bg-green-500/10 rounded p-4 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+            <p className="text-sm text-foreground">{prSuccess}</p>
+          </div>
+        )}
 
-          {/* Execution Coverage - Phase 14.4 */}
-          {/* Shows which capabilities executed vs unavailable */}
-          {/* Now uses real selected plan from localStorage */}
-          <div className="mb-6">
-            <ExecutionCoverage 
+        {/* Execution Coverage */}
+        <ExecutionCoverage 
               plan={plan}
               executedAnalyzers={[
                 'architectural',
@@ -228,51 +218,51 @@ export default function RunDetailPage() {
               ]}
               skippedAnalyzers={[]}
             />
-          </div>
-          
-          {/* Phase 15.1: Fix Summary Card (Read-Only View) */}
-          {fixSummary && (fixSummary.proposed > 0 || fixSummary.approved > 0 || fixSummary.applied > 0 || fixSummary.failed > 0) && (
-            <Card className="mb-4 border-orange-200 bg-orange-50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Wrench className="w-4 h-4 text-orange-600" />
-                    <h3 className="text-sm font-semibold text-orange-900">🛠️ Fix Summary</h3>
-                  </div>
-                  <Link 
-                    href={`/governance/run-${runId}`}
-                    className="text-xs text-orange-700 hover:text-orange-900 font-medium flex items-center gap-1"
-                  >
-                    Review in Governance
-                    <ExternalLink className="w-3 h-3" />
-                  </Link>
+
+        {/* Fix Summary */}
+        {fixSummary && (fixSummary.proposed > 0 || fixSummary.approved > 0 || fixSummary.applied > 0 || fixSummary.failed > 0) && (
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Fix Summary</h3>
                 </div>
-                <div className="grid grid-cols-4 gap-3 mt-3 text-xs">
-                  <div className="bg-white rounded border border-blue-200 p-2">
-                    <div className="text-blue-600 font-medium">{fixSummary.proposed}</div>
-                    <div className="text-blue-800">Proposed</div>
-                  </div>
-                  <div className="bg-white rounded border border-green-200 p-2">
-                    <div className="text-green-600 font-medium">{fixSummary.approved}</div>
-                    <div className="text-green-800">Approved</div>
-                  </div>
-                  <div className="bg-white rounded border border-emerald-200 p-2">
-                    <div className="text-emerald-600 font-medium">{fixSummary.applied}</div>
-                    <div className="text-emerald-800">Applied</div>
-                  </div>
-                  <div className="bg-white rounded border border-red-200 p-2">
-                    <div className="text-red-600 font-medium">{fixSummary.failed}</div>
-                    <div className="text-red-800">Failed</div>
-                  </div>
+                <Link 
+                  href={`/governance/run-${runId}`}
+                  className="text-xs text-muted-foreground hover:text-foreground font-medium flex items-center gap-1"
+                >
+                  Review in Governance
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="border border-border rounded p-3">
+                  <div className="text-lg font-semibold">{fixSummary.proposed}</div>
+                  <div className="text-xs text-muted-foreground">Proposed</div>
                 </div>
-                <p className="text-xs text-orange-800 mt-2 italic">
-                  ⚠️ All fix actions (approve, reject, apply) must be performed in Governance for audit compliance.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-          
-          <div className="mb-4 bg-card border border-border border-l-2 border-l-primary rounded p-4">
+                <div className="border border-border rounded p-3">
+                  <div className="text-lg font-semibold">{fixSummary.approved}</div>
+                  <div className="text-xs text-muted-foreground">Approved</div>
+                </div>
+                <div className="border border-border rounded p-3">
+                  <div className="text-lg font-semibold">{fixSummary.applied}</div>
+                  <div className="text-xs text-muted-foreground">Applied</div>
+                </div>
+                <div className="border border-border rounded p-3">
+                  <div className="text-lg font-semibold">{fixSummary.failed}</div>
+                  <div className="text-xs text-muted-foreground">Failed</div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                All fix actions (approve, reject, apply) must be performed in Governance for audit compliance.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Summary */}
+        <div className="border border-border border-l-2 border-l-primary rounded p-4">
             <div className="grid grid-cols-3 gap-6 text-xs">
               <div>
                 <div className="text-muted-foreground mb-1">Status</div>
@@ -324,148 +314,120 @@ export default function RunDetailPage() {
                 Error: {data!.error}
               </div>
             )}
-          </div>
-
-          {/* Results table */}
-          <div className="bg-card border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-card border-b border-border">
-                  <TableRow>
-                    <TableHead className="text-[11px] font-medium text-muted-foreground bg-card">file</TableHead>
-                    <TableHead className="text-[11px] font-medium text-muted-foreground bg-card">line</TableHead>
-                    <TableHead className="text-[11px] font-medium text-muted-foreground bg-card">code</TableHead>
-                    <TableHead className="text-[11px] font-medium text-muted-foreground bg-card">name</TableHead>
-                    <TableHead className="text-[11px] font-medium text-muted-foreground bg-card">category</TableHead>
-                    <TableHead className="text-[11px] font-medium text-muted-foreground bg-card">message</TableHead>
-                    <TableHead className="text-[11px] font-medium text-muted-foreground bg-card">fixed</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data!.results.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7}>
-                        <div className="py-8 text-center text-muted-foreground text-sm">No issues found</div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    data!.results.map((r) => (
-                      <TableRow key={r.id} className="border-l-2 border-transparent hover:border-primary hover:bg-muted/20 transition-colors">
-                        <TableCell className="font-mono text-sm text-foreground max-w-xs truncate">{r.file_path}</TableCell>
-                        <TableCell className="font-mono text-xs bg-muted px-2 py-1 text-muted-foreground">{r.line_number}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{r.code}</TableCell>
-                        <TableCell className="text-xs text-foreground">{r.name}</TableCell>
-                        <TableCell className="text-xs"><CategoryBadge category={r.category} /></TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-lg">{r.message}</TableCell>
-                        <TableCell className="text-xs">
-                          {r.is_fixed ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-muted border border-border text-foreground">
-                              Fixed
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-muted border border-border text-muted-foreground">
-                              —
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          {/* PR Creation Modal */}
-          {showPRModal && (
-            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-              <div className="bg-card border border-border rounded max-w-md w-full p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-medium flex items-center gap-2 text-foreground">
-                    <GitPullRequest className="w-4 h-4" />
-                    Create Pull Request
-                  </h3>
-                  <button
-                    onClick={() => setShowPRModal(false)}
-                    className="text-muted-foreground hover:text-foreground text-sm"
-                  >
-                    ✕
-                  </button>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Branch Name (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={prBranch}
-                      onChange={(e) => setPrBranch(e.target.value)}
-                      placeholder={`agi-engineer-fixes-run-${runId}`}
-                      className="w-full px-3 py-1.5 bg-muted border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary"
-                    />
-                    <p className="text-[11px] text-muted-foreground mt-1">Leave empty for auto-generated name</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      PR Title (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={prTitle}
-                      onChange={(e) => setPrTitle(e.target.value)}
-                      placeholder={`Auto-fix issues from run #${runId}`}
-                      className="w-full px-3 py-1.5 bg-muted border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      PR Description (optional)
-                    </label>
-                    <textarea
-                      value={prBody}
-                      onChange={(e) => setPrBody(e.target.value)}
-                      placeholder={`Automatically fixed ${fixedCount} issues`}
-                      rows={3}
-                      className="w-full px-3 py-1.5 bg-muted border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div className="bg-card border border-primary rounded p-3 text-xs text-foreground">
-                    This will create a PR with {fixedCount} fixed issues
-                  </div>
-
-                  {error && (
-                    <div className="bg-card border border-destructive rounded p-3 text-xs text-destructive">
-                      {error}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={handleCreatePR}
-                      disabled={creatingPR}
-                      className="flex-1 px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded text-sm transition-colors disabled:opacity-50"
-                    >
-                      {creatingPR ? 'Creating...' : 'Create PR'}
-                    </button>
-                    <button
-                      onClick={() => setShowPRModal(false)}
-                      disabled={creatingPR}
-                      className="flex-1 px-3 py-1.5 bg-muted hover:bg-card border border-border text-foreground rounded text-sm transition-colors disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
-      </main>
-    </>
+
+        {/* Results table */}
+        <div className="border border-border rounded">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>File</TableHead>
+                <TableHead>Line</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>Fixed</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data!.results.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center">
+                    <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-green-400 opacity-40" />
+                    <p className="text-sm text-muted-foreground">No issues found</p>
+                    <p className="text-xs text-muted-foreground mt-1">This codebase looks great!</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data!.results.map((r) => (
+                  <TableRow key={r.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <TableCell className="font-mono text-sm max-w-xs truncate">{r.file_path}</TableCell>
+                    <TableCell className="font-mono text-sm text-muted-foreground">{r.line_number}</TableCell>
+                    <TableCell className="font-mono text-sm text-muted-foreground">{r.code}</TableCell>
+                    <TableCell className="text-sm">{r.name}</TableCell>
+                    <TableCell><CategoryBadge category={r.category} /></TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-lg">{r.message}</TableCell>
+                    <TableCell>
+                      {r.is_fixed ? (
+                        <Badge variant="default">Fixed</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* PR Creation Modal */}
+        <Dialog open={showPRModal} onOpenChange={setShowPRModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <GitPullRequest className="w-4 h-4" />
+                Create Pull Request
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="pr-branch">Branch Name (optional)</Label>
+                <Input
+                  id="pr-branch"
+                  value={prBranch}
+                  onChange={(e) => setPrBranch(e.target.value)}
+                  placeholder={`agi-engineer-fixes-run-${runId}`}
+                  disabled={creatingPR}
+                />
+                <p className="text-xs text-muted-foreground">Leave empty for auto-generated name</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pr-title">PR Title (optional)</Label>
+                <Input
+                  id="pr-title"
+                  value={prTitle}
+                  onChange={(e) => setPrTitle(e.target.value)}
+                  placeholder={`Auto-fix issues from run #${runId}`}
+                  disabled={creatingPR}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pr-body">PR Description (optional)</Label>
+                <Textarea
+                  id="pr-body"
+                  value={prBody}
+                  onChange={(e) => setPrBody(e.target.value)}
+                  placeholder={`Automatically fixed ${fixedCount} issues`}
+                  rows={3}
+                  disabled={creatingPR}
+                />
+              </div>
+
+              <div className="border border-border rounded p-3 text-sm">
+                This will create a PR with {fixedCount} fixed issues
+              </div>
+
+              {error && (
+                <div className="border border-destructive rounded p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPRModal(false)} disabled={creatingPR}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreatePR} disabled={creatingPR}>
+                {creatingPR ? 'Creating...' : 'Create PR'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AppShell>
   )
 }

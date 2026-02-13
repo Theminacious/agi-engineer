@@ -133,13 +133,13 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
       </Link>
 
       {/* Page Header with Metadata */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+      <Card className="border-border">
         <CardContent className="p-6">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Lock className="w-6 h-6 text-blue-600" />
-                <h1 className="text-2xl font-bold text-gray-900 font-mono">
+                <Lock className="w-6 h-6 text-primary" />
+                <h1 className="text-2xl font-semibold tracking-tight font-mono">
                   {metadata.run_id}
                 </h1>
                 <Badge className={stateColors[metadata.final_state] || 'bg-gray-100'}>
@@ -150,33 +150,33 @@ export default async function GovernanceRunDetailPage({ params }: GovernanceRunD
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div className="flex items-center gap-2">
-                  <GitBranch className="w-4 h-4 text-gray-600" />
-                  <span className="text-gray-600">Branch:</span>
-                  <span className="font-mono text-gray-900">{metadata.branch}</span>
+                  <GitBranch className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Branch:</span>
+                  <span className="font-mono text-foreground">{metadata.branch}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-600" />
-                  <span className="text-gray-600">Started:</span>
-                  <span className="text-gray-900">{formatTimestamp(metadata.started_at)}</span>
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Started:</span>
+                  <span className="text-foreground">{formatTimestamp(metadata.started_at)}</span>
                 </div>
 
                 {metadata.ended_at && (
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-600" />
-                    <span className="text-gray-600">Ended:</span>
-                    <span className="text-gray-900">{formatTimestamp(metadata.ended_at)}</span>
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Ended:</span>
+                    <span className="text-foreground">{formatTimestamp(metadata.ended_at)}</span>
                   </div>
                 )}
 
                 <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-gray-600" />
-                  <span className="text-gray-600">Policy:</span>
-                  <span className="font-mono text-gray-900">{metadata.policy}</span>
+                  <Shield className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Policy:</span>
+                  <span className="font-mono text-foreground">{metadata.policy}</span>
                 </div>
               </div>
 
-              <div className="mt-3 text-xs text-gray-600 font-mono bg-white p-2 rounded border">
+              <div className="mt-3 text-xs text-muted-foreground font-mono bg-muted p-2 rounded border border-border">
                 {metadata.repository_url}
               </div>
             </div>
