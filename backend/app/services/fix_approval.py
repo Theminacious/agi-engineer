@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from app.models.code_fix import CodeFix, FixStatus
-from app.plans import UserPlanContext, PLAN_REGISTRY
+from app.plans import UserPlanContext, PlanTier, PLAN_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +47,13 @@ class FixApprovalService:
         Returns:
             True if user can approve fixes
         """
-        plan_def = PLAN_REGISTRY.get(plan_context.plan_id)
+        plan_def = PLAN_REGISTRY.get(plan_context.plan_tier)
         if not plan_def:
             return False
         
         # Check if plan includes fix approval capability
         # Phase 15.1: Only Advanced and Autonomous can approve
-        return plan_context.plan_id in ["team", "enterprise"]
+        return plan_context.plan_tier in [PlanTier.TEAM, PlanTier.ENTERPRISE]
     
     def can_apply_fixes(self, plan_context: UserPlanContext) -> bool:
         """
@@ -101,7 +101,7 @@ class FixApprovalService:
                 return {
                     "success": False,
                     "error": "plan_restriction",
-                    "message": f"Your {plan_context.plan_id} plan does not allow fix approval. Upgrade to Advanced Engineer to approve and apply fixes.",
+                    "message": f"Your {plan_context.plan_tier.value} plan does not allow fix approval. Upgrade to Advanced Engineer to approve and apply fixes.",
                     "required_plan": "team"
                 }
             
@@ -128,7 +128,7 @@ class FixApprovalService:
             fix.status = FixStatus.APPROVED
             fix.approved_by = approved_by
             fix.approved_at = now
-            fix.approval_plan = plan_context.plan_id
+            fix.approval_plan = plan_context.plan_tier.value
             fix.updated_at = now
             
             # 5. Record in ledger
@@ -149,7 +149,7 @@ class FixApprovalService:
             self.db.commit()
             self.db.refresh(fix)
             
-            logger.info(f"Fix {fix_id} approved by {approved_by} (plan={plan_context.plan_id})")
+            logger.info(f"Fix {fix_id} approved by {approved_by} (plan={plan_context.plan_tier.value})")
             
             return {
                 "success": True,
@@ -201,7 +201,7 @@ class FixApprovalService:
                 return {
                     "success": False,
                     "error": "plan_restriction",
-                    "message": f"Your {plan_context.plan_id} plan does not allow fix rejection.",
+                    "message": f"Your {plan_context.plan_tier.value} plan does not allow fix rejection.",
                     "required_plan": "team"
                 }
             

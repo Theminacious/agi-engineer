@@ -19,6 +19,7 @@ from app.security import verify_token
 from app.plans import UserPlanContext, PlanTier, create_plan_context
 from app.services.fix_approval import FixApprovalService
 from app.services.fix_application import FixApplicationService
+from app.services.batch_fix import BatchFixService
 
 router = APIRouter(prefix="/api/fixes", tags=["fixes"])
 
@@ -427,3 +428,227 @@ async def get_fixes_for_run(
         "total": len(fixes),
         "status_counts": status_counts,
     }
+
+
+# ----------------------------------------------------------------------
+# Phase 15.2: Batch Fix Operations
+# ----------------------------------------------------------------------
+
+class BatchApprovalRequest(BaseModel):
+    """Request model for batch fix approval."""
+    fix_ids: List[int]
+    plan_tier: str = "developer"
+    approved_by: str = "user@example.com"
+
+
+class BatchRejectionRequest(BaseModel):
+    """Request model for batch fix rejection."""
+    fix_ids: List[int]
+    plan_tier: str = "developer"
+    rejected_by: str = "user@example.com"
+    reason: Optional[str] = None
+
+
+class BatchApplicationRequest(BaseModel):
+    """Request model for batch fix application."""
+    fix_ids: List[int]
+    plan_tier: str = "developer"
+    applied_by: str = "user@example.com"
+
+
+class BatchPreviewRequest(BaseModel):
+    """Request model for batch preview."""
+    fix_ids: List[int]
+    plan_tier: str = "developer"
+
+
+@router.post("/batch/approve")
+async def batch_approve_fixes(
+    request: BatchApprovalRequest,
+    token: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+) -> dict:
+    """
+    Approve multiple fixes in batch.
+    
+    Phase 15.2: Batch approval with governance.
+    
+    Process:
+    1. Validate all fixes
+    2. Approve each fix individually
+    3. Record batch event in ledger
+    4. Return comprehensive results
+    
+    Args:
+        request: Batch approval request
+        token: JWT token
+        db: Database session
+        
+    Returns:
+        Batch approval results with successes and failures
+    """
+    # Create plan context
+    try:
+        plan_tier = PlanTier(request.plan_tier)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid plan tier: {request.plan_tier}")
+    
+    plan_context = create_plan_context(plan_tier)
+    
+    # Execute batch approval
+    service = BatchFixService(db)
+    result = service.approve_many(
+        fix_ids=request.fix_ids,
+        user_id=request.approved_by,
+        plan_context=plan_context,
+        ledger_writer=None  # TODO: Integrate with RunLedgerWriter
+    )
+    
+    if not result["success"]:
+        status_code = 400
+        if result.get("error") == "plan_restriction":
+            status_code = 403
+        elif result.get("error") == "validation_failed":
+            status_code = 422
+        raise HTTPException(status_code=status_code, detail=result.get("message", "Batch approval failed"))
+    
+    return result
+
+
+@router.post("/batch/reject")
+async def batch_reject_fixes(
+    request: BatchRejectionRequest,
+    token: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+) -> dict:
+    """
+    Reject multiple fixes in batch.
+    
+    Phase 15.2: Batch rejection with governance.
+    
+    Args:
+        request: Batch rejection request
+        token: JWT token
+        db: Database session
+        
+    Returns:
+        Batch rejection results
+    """
+    # Create plan context
+    try:
+        plan_tier = PlanTier(request.plan_tier)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid plan tier: {request.plan_tier}")
+    
+    plan_context = create_plan_context(plan_tier)
+    
+    # Execute batch rejection
+    service = BatchFixService(db)
+    result = service.reject_many(
+        fix_ids=request.fix_ids,
+        user_id=request.rejected_by,
+        reason=request.reason,
+        plan_context=plan_context,
+        ledger_writer=None
+    )
+    
+    if not result["success"]:
+        status_code = 400
+        if result.get("error") == "plan_restriction":
+            status_code = 403
+        elif result.get("error") == "validation_failed":
+            status_code = 422
+        raise HTTPException(status_code=status_code, detail=result.get("message", "Batch rejection failed"))
+    
+    return result
+
+
+@router.post("/batch/apply")
+async def batch_apply_fixes(
+    request: BatchApplicationRequest,
+    token: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+) -> dict:
+    """
+    Apply multiple approved fixes in batch.
+    
+    Phase 15.2: Batch application with conflict detection.
+    
+    Process:
+    1. Validate all fixes are approved
+    2. Detect file conflicts
+    3. Apply each fix individually
+    4. Record batch event in ledger
+    5. Return detailed results
+    
+    Args:
+        request: Batch application request
+        token: JWT token
+        db: Database session
+        
+    Returns:
+        Batch application results with successes and failures
+    """
+    # Create plan context
+    try:
+        plan_tier = PlanTier(request.plan_tier)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid plan tier: {request.plan_tier}")
+    
+    plan_context = create_plan_context(plan_tier)
+    
+    # Execute batch application
+    service = BatchFixService(db)
+    result = service.apply_many(
+        fix_ids=request.fix_ids,
+        user_id=request.applied_by,
+        plan_context=plan_context,
+        ledger_writer=None
+    )
+    
+    if not result["success"]:
+        status_code = 400
+        if result.get("error") == "plan_restriction":
+            status_code = 403
+        elif result.get("error") == "validation_failed":
+            status_code = 422
+        raise HTTPException(status_code=status_code, detail=result.get("message", "Batch application failed"))
+    
+    return result
+
+
+@router.post("/batch/preview")
+async def batch_preview_fixes(
+    request: BatchPreviewRequest,
+    token: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+) -> dict:
+    """
+    Preview a batch operation without executing.
+    
+    Phase 15.2: Generate preview with validation, risk assessment, and combined patch.
+    
+    Args:
+        request: Batch preview request
+        token: JWT token
+        db: Database session
+        
+    Returns:
+        Preview data including combined patch and risk assessment
+    """
+    # Create plan context
+    try:
+        plan_tier = PlanTier(request.plan_tier)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid plan tier: {request.plan_tier}")
+    
+    plan_context = create_plan_context(plan_tier)
+    
+    # Generate preview
+    service = BatchFixService(db)
+    result = service.get_batch_preview(
+        fix_ids=request.fix_ids,
+        plan_context=plan_context
+    )
+    
+    return result

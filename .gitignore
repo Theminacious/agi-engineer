@@ -38,15 +38,35 @@ repos/requests-html/
 # Ruff cache
 .ruff_cache/
 
-# Temp files
-tmp*.py
-test_*.py
-debug.py
-demo_*.py
+# Temp files (root-level only)
+/tmp*.py
+/test_*.py
+/debug.py
+/demo_*.py
 
 # Safety reports
 safety_report.json
 *.log
+
+# Database files
+*.db
+dump.rdb
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / frontend build artifacts
+node_modules/
+.next/
+
+# Phase status docs (generated during development)
+PHASE_*.md
+PRODUCTION_READINESS_AUDIT.md
+RECOVERY_CHECKPOINT.md
+SESSION_LIFECYCLE_VERIFICATION.md
+V2_COMPLETE.md
 
 # Git temp files
 *.orig

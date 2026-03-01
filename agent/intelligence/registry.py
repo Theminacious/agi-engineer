@@ -36,6 +36,13 @@ from agent.intelligence.analyzers.abstraction import AbstractionLeakageAnalyzer
 from agent.intelligence.analyzers.god_objects import GodObjectsAnalyzer
 from agent.intelligence.analyzers.broken_invariants import BrokenInvariantsAnalyzer
 
+# Phase 16: Reliability Intelligence Engine
+from agent.intelligence.analyzers.reliability.crash_risk import CrashRiskAnalyzer
+from agent.intelligence.analyzers.reliability.resource_leak import ResourceLeakAnalyzer
+from agent.intelligence.analyzers.reliability.reliability_pattern import ReliabilityPatternAnalyzer
+from agent.intelligence.analyzers.reliability.scalability_risk import ScalabilityRiskAnalyzer
+from agent.intelligence.analyzers.reliability.edge_case_logic import EdgeCaseLogicAnalyzer
+
 # Plan ordering for deterministic comparison (no billing logic)
 _PLAN_ORDER = {
     "developer": 0,
@@ -51,6 +58,7 @@ _ALLOWED_CATEGORIES = {
     "security",
     "testing",
     "configuration",
+    "reliability",  # Phase 16
 }
 
 # Static, explicit registry. Keys are stable, human-readable IDs.
@@ -165,6 +173,43 @@ ANALYZER_REGISTRY: Dict[str, Dict[str, Any]] = {
         "min_plan": "developer",
         "default_enabled": True,
         "description": "Detects dependency misuse, deprecated APIs, and version conflicts",
+    },
+
+    # Phase 16: Reliability Intelligence Engine
+    "crash_risk": {
+        "class": CrashRiskAnalyzer,
+        "category": "reliability",
+        "min_plan": "team",
+        "default_enabled": True,
+        "description": "Detects null dereference, missing error handling, unchecked returns, recursion risks",
+    },
+    "resource_leak": {
+        "class": ResourceLeakAnalyzer,
+        "category": "reliability",
+        "min_plan": "team",
+        "default_enabled": True,
+        "description": "Detects file handle, connection, memory, and thread leaks",
+    },
+    "reliability_pattern": {
+        "class": ReliabilityPatternAnalyzer,
+        "category": "reliability",
+        "min_plan": "team",
+        "default_enabled": True,
+        "description": "Detects retry without backoff, missing timeouts, silent failures, blocking in async",
+    },
+    "scalability_risk": {
+        "class": ScalabilityRiskAnalyzer,
+        "category": "reliability",
+        "min_plan": "enterprise",
+        "default_enabled": True,
+        "description": "Detects N+1 queries, inefficient algorithms, unbounded queries, heavy computation",
+    },
+    "edge_case_logic": {
+        "class": EdgeCaseLogicAnalyzer,
+        "category": "reliability",
+        "min_plan": "team",
+        "default_enabled": True,
+        "description": "Detects division by zero, float comparison, timezone issues, array bounds errors",
     },
 }
 

@@ -76,6 +76,12 @@ class CodeFix(Base):
     application_error = Column(Text, nullable=True)  # Error message if failed
     application_metadata = Column(JSON, nullable=True)  # Additional context
     
+    # Phase 15.3: Automated fix generation fields
+    risk_level = Column(String(20), nullable=True)  # LOW | MEDIUM | HIGH
+    confidence = Column(Integer, nullable=True)  # 0-100 scale (stored as int for DB compatibility)
+    generated_by_run = Column(Boolean, default=False, nullable=False)  # True if auto-generated
+    finding_id = Column(String(100), nullable=True)  # IntelligenceProposal.proposal_id
+    
     # PR generation (legacy)
     pr_url = Column(String(255))  # URL to generated PR
     pr_created_at = Column(DateTime)
@@ -118,6 +124,12 @@ class CodeFix(Base):
             # Application
             "application_error": self.application_error,
             "application_metadata": self.application_metadata,
+            
+            # Phase 15.3: Automated generation
+            "risk_level": self.risk_level,
+            "confidence": self.confidence,
+            "generated_by_run": self.generated_by_run,
+            "finding_id": self.finding_id,
             
             # Legacy
             "pr_url": self.pr_url,

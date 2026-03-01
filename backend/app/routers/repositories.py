@@ -6,17 +6,14 @@ from pydantic import BaseModel
 import requests
 import re
 from concurrent.futures import ThreadPoolExecutor
-
-from app.db import SessionLocal
-from app.models.analysis_run import AnalysisRun, RunStatus
-from app.models.analysis_result import AnalysisResult, IssueCategory
-from app.tasks.analysis_tasks import clone_repository, run_agi_engineer_analysis
 from datetime import datetime
 
-from app.db import get_db
+from app.db import SessionLocal, get_db
+from app.models.analysis_run import AnalysisRun, RunStatus
+from app.models.analysis_result import AnalysisResult, IssueCategory
 from app.models.repository import Repository
 from app.models.installation import Installation
-from app.models.analysis_run import AnalysisRun, RunStatus
+from app.tasks.analysis_tasks import clone_repository, run_agi_engineer_analysis
 from app.security import verify_token
 from app.tasks import run_code_analysis
 

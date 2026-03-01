@@ -71,12 +71,15 @@ class IntelligenceOrchestrator:
         selection: Optional[AnalyzerSelection] = None,
         plan: Optional[str] = None,
         plan_context: Optional[Any] = None,  # UserPlanContext from backend.app.plans
+        db_session: Optional[Any] = None,  # Phase 15.3: Optional database session for fix generation
+        result_id: Optional[int] = None,  # Phase 15.3: Optional AnalysisResult ID for fix linkage
     ) -> List[IntelligenceProposal]:
         """
         Analyze repository with all analyzers.
         
         Phase 11.3: Optional ledger integration.
         Phase 14.2: Optional plan_context for subscription enforcement.
+        Phase 15.3: Optional fix generation from findings.
         
         Args:
             repository_path: Path to repository root
@@ -87,6 +90,8 @@ class IntelligenceOrchestrator:
             selection: Optional analyzer selection
             plan: Optional plan tier string (deprecated in favor of plan_context)
             plan_context: Optional UserPlanContext for plan enforcement
+            db_session: Optional database session for automatic fix generation (Phase 15.3)
+            result_id: Optional AnalysisResult ID for linking generated fixes (Phase 15.3)
         
         Returns:
             List of intelligence proposals
@@ -96,6 +101,7 @@ class IntelligenceOrchestrator:
             - Ledger failures are non-fatal and never crash analysis
             - Intelligence remains stateless and replayable
             - Plan enforcement is deterministic and auditable
+            - Fix generation is optional and non-breaking (Phase 15.3)
         """
         import time
         self.start_time = time.time()
@@ -196,6 +202,23 @@ class IntelligenceOrchestrator:
                 ledger=ledger,
                 run_id=ledger_run_id,
             )
+        
+        # ======== PHASE 15.3: AUTOMATED FIX GENERATION (OPTIONAL) ========
+        # Generate fix candidates from proposals if database session provided
+        # This is completely optional and does not break existing code
+        if db_session is not None:
+            try:
+                self._generate_fix_candidates(
+                    proposals=all_proposals,
+                    run_id=ledger_run_id,
+                    repository_path=repository_path,
+                    ledger=ledger,
+                    db_session=db_session,
+                    result_id=result_id,
+                )
+            except Exception as e:
+                # Fix generation failure is non-fatal
+                logger.warning(f"Failed to generate fix candidates: {e}", exc_info=True)
         
         return all_proposals
     
@@ -313,6 +336,60 @@ class IntelligenceOrchestrator:
             f"Proposals recorded: {recorded_count}/{len(proposals)} "
             f"(failed: {failed_count})"
         )
+    
+    def _generate_fix_candidates(
+        self,
+        proposals: List[IntelligenceProposal],
+        run_id: str,
+        repository_path: str,
+        ledger: Optional[Any],
+        db_session: Any,
+        result_id: Optional[int],
+    ) -> None:
+        """
+        Generate fix candidates from intelligence proposals.
+        
+        Phase 15.3: Automated fix generation integration.
+        
+        Args:
+            proposals: List of IntelligenceProposal objects
+            run_id: Run ID for association
+            repository_path: Path to repository root
+            ledger: Optional RunLedgerWriter for audit trail
+            db_session: Database session for persistence
+            result_id: Optional AnalysisResult ID for linkage
+        
+        Guarantees:
+            - Fix generation is optional (only runs if db_session provided)
+            - Failures are non-fatal and logged
+            - All fixes start in PROPOSED status (no auto-approval)
+            - Deterministic ordering and deduplication
+        """
+        try:
+            # Import here to avoid circular dependency
+            # FixGenerationService is in backend, orchestrator is in agent
+            from app.services.fix_generation import FixGenerationService
+            
+            # Create service
+            fix_service = FixGenerationService(db_session)
+            
+            # Generate fixes
+            fixes = fix_service.generate_from_findings(
+                run_id=run_id,
+                findings=proposals,
+                repository_path=repository_path,
+                ledger=ledger,
+                result_id=result_id,
+            )
+            
+            logger.info(f"Generated {len(fixes)} fix candidates from {len(proposals)} proposals")
+            
+        except ImportError as e:
+            # FixGenerationService not available (e.g., running from agent without backend)
+            logger.debug(f"Fix generation service not available: {e}")
+        except Exception as e:
+            # Any other error - log and continue
+            logger.warning(f"Error in fix candidate generation: {e}", exc_info=True)
     
     def get_summary(self) -> Dict:
         """Get analysis summary."""

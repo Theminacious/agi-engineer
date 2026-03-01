@@ -331,26 +331,18 @@ async def create_pr_from_run(
             "message": "All fixes already have PRs created"
         }
     
-    # Queue PR creation for all fixes
-    branch_name = request.branch_name or f"agi-engineer-fixes-run-{run_id}"
-    
-    from app.tasks.fix_tasks import create_bulk_github_pr
-    background_tasks.add_task(
-        create_bulk_github_pr,
-        repo_id=repo.id,
-        fix_ids=queued_fixes,
-        branch_name=branch_name,
-        pr_title=request.pr_title or f"🤖 Auto-fix issues from run #{run_id}",
-        pr_body=request.pr_body or f"Automatically fixed {len(queued_fixes)} issues detected in analysis run #{run_id}"
+    # Bulk PR creation feature not yet implemented
+    # Return 501 Not Implemented instead of queuing a stub task
+    raise HTTPException(
+        status_code=501,
+        detail={
+            "error": "Bulk PR creation feature is not yet implemented",
+            "message": "This feature is under development. Please use individual PR creation for now.",
+            "run_id": run_id,
+            "fix_count": len(queued_fixes),
+            "available_fixes": queued_fixes
+        }
     )
-    
-    return {
-        "status": "queued",
-        "run_id": run_id,
-        "fix_count": len(queued_fixes),
-        "branch_name": branch_name,
-        "message": f"PR creation queued for {len(queued_fixes)} fixes"
-    }
 
 
 async def _execute_analysis_background(
@@ -504,6 +496,7 @@ async def _execute_analysis_background(
     except Exception as e:
         logger.error(f"Error during analysis execution: {str(e)}", exc_info=True)
         try:
+            db.rollback()  # Clear any dirty session state before recording failure
             run = db.query(AnalysisRun).filter(AnalysisRun.id == run_id).first()
             if run:
                 run.status = RunStatus.FAILED

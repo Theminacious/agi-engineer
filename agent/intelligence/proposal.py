@@ -29,6 +29,12 @@ class BugClass(Enum):
     DEPENDENCY_MISUSE = "dependency_misuse"
     API_CONTRACT_VIOLATIONS = "api_contract_violations"
     ABSTRACTION_LEAKAGE = "abstraction_leakage"
+    # Phase 16: Reliability Intelligence Engine
+    CRASH_RISKS = "crash_risks"
+    RESOURCE_LEAKS = "resource_leaks"
+    RELIABILITY_ANTI_PATTERNS = "reliability_anti_patterns"
+    SCALABILITY_RISKS = "scalability_risks"
+    EDGE_CASE_VULNERABILITIES = "edge_case_vulnerabilities"
 
 
 class Severity(Enum):

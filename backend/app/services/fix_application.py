@@ -25,7 +25,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from app.models.code_fix import CodeFix, FixStatus
-from app.plans import UserPlanContext
+from app.plans import UserPlanContext, PlanTier
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class FixApplicationService:
         Returns:
             True if user can apply fixes
         """
-        return plan_context.plan_id in ["team", "enterprise"]
+        return plan_context.plan_tier in [PlanTier.TEAM, PlanTier.ENTERPRISE]
     
     def generate_patch(self, original_code: str, fixed_code: str, file_path: str = "file") -> str:
         """
@@ -178,7 +178,7 @@ class FixApplicationService:
                 return {
                     "success": False,
                     "error": "plan_restriction",
-                    "message": f"Your {plan_context.plan_id} plan does not allow fix application. Upgrade to Advanced Engineer.",
+                    "message": f"Your {plan_context.plan_tier.value} plan does not allow fix application. Upgrade to Advanced Engineer.",
                     "required_plan": "team"
                 }
             
@@ -286,7 +286,7 @@ class FixApplicationService:
             fix.status = FixStatus.APPLIED
             fix.applied_by = applied_by
             fix.applied_at = now
-            fix.application_plan = plan_context.plan_id
+            fix.application_plan = plan_context.plan_tier.value
             fix.application_metadata = {
                 "repo_path": repo_path,
                 "file_modified": fix.file_path,
