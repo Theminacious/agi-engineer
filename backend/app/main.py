@@ -15,7 +15,9 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:3000"],
+    allow_origins=[settings.frontend_url, "https://agi-engineer-6mcf.vercel.app",
+        "https://agi-engineer-6mcf-git-main-theminacious-projects.vercel.app",
+        "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
