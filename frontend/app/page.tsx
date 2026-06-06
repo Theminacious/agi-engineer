@@ -337,7 +337,7 @@ export default function HomePage() {
                         It starts with memory—<br/>at the <span className="text-blue-500">OS-Level</span>
                      </h2>
                      <p className="text-gray-400 max-w-lg text-lg">
-                        We don't just grep text. AGI Engineer builds a persistent knowledge graph of your entire architecture.
+                                We don&apos;t just grep text. AGI Engineer builds a persistent knowledge graph of your entire architecture.
                      </p>
                 </div>
                 <div className="hidden md:flex gap-2">
@@ -469,7 +469,7 @@ export default function HomePage() {
              <div className="bg-[#121214] border border-white/10 p-10 rounded-3xl flex flex-col justify-center relative overflow-hidden">
                  <Icons.Quote className="w-10 h-10 text-gray-600 mb-6" />
                  <p className="text-xl font-medium text-gray-200 mb-6 leading-relaxed">
-                    "It caught a race condition I missed for weeks. AGI Engineer is like having a senior developer who never sleeps."
+                          &ldquo;It caught a race condition I missed for weeks. AGI Engineer is like having a senior developer who never sleeps.&rdquo;
                  </p>
                  <div className="flex items-center gap-4">
                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500" />
@@ -492,8 +492,8 @@ export default function HomePage() {
                  <div className="relative z-10 flex flex-col items-center">
                     <AppLogo className="mb-8 scale-150" />
                     <h2 className="text-4xl md:text-7xl font-bold mb-8 tracking-tight">
-                        "It's like I'm building my own<br/>
-                        <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500">private internet</span>"
+                        &ldquo;It&apos;s like I&apos;m building my own<br/>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500">private internet</span>&rdquo;
                     </h2>
                     <p className="text-gray-400 text-lg mb-10">Join 10,000+ engineers shipping safer code today.</p>
                     

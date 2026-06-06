@@ -185,7 +185,7 @@ export default function DashboardPage() {
                 {runs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-sm text-muted-foreground">
-                      No analysis runs yet. Click "New Analysis" to get started.
+                      No analysis runs yet. Click &quot;New Analysis&quot; to get started.
                     </TableCell>
                   </TableRow>
                 ) : (

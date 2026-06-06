@@ -75,7 +75,7 @@ export default function GovernanceIntro() {
             </p>
             <p>
               Events are append-only, sequence-ordered, and immutable.
-              If it's not in the ledger, it didn't happen.
+              If it&apos;s not in the ledger, it didn&apos;t happen.
             </p>
           </CardContent>
         </Card>

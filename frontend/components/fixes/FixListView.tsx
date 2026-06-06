@@ -3,20 +3,17 @@
 /**
  * Phase 15.1: Fix List View
  * Phase 15.2: Batch Fix Operations (Enhanced)
- * 
+ *
  * Displays list of fixes with status summary:
- * - Status counts (proposed/approved/applied/rejected)
+ * - Status counts (proposed/approved/applied/rejected/failed)
  * - Filter by status
- * - Compact card view
- * - Quick actions
- * - Checkbox selection for batch operations (Phase 15.2)
- * - Batch action toolbar (Phase 15.2)
+ * - Checkbox selection for batch operations
+ * - Batch action toolbar
  */
 
 import { useState } from 'react'
 import { FixApprovalCard } from './FixApprovalCard'
-import StatusBadge from '@/components/ui/StatusBadge'
-import { Eye, CheckCircle2, XCircle, Sparkles, AlertCircle } from 'lucide-react'
+import { CheckCircle2, XCircle, Sparkles, AlertCircle } from 'lucide-react'
 
 interface Fix {
   id: number
@@ -27,7 +24,7 @@ interface Fix {
   explanation?: string
   patch?: string
   status: 'proposed' | 'approved' | 'rejected' | 'applied' | 'failed'
-  
+
   approved_by?: string
   approved_at?: string
   rejected_by?: string
@@ -41,111 +38,126 @@ interface FixListViewProps {
   onApprove?: (fixId: number) => void
   onReject?: (fixId: number, reason?: string) => void
   onApply?: (fixId: number, dryRun?: boolean) => void
-  // Phase 15.2: Batch operations
   onBatchApprove?: (fixIds: number[]) => void
   onBatchReject?: (fixIds: number[], reason?: string) => void
   onBatchApply?: (fixIds: number[]) => void
   onBatchPreview?: (fixIds: number[]) => void
 }
 
-export function FixListView({ fixes, onApprove, onReject, onApply, onBatchApprove, onBatchReject, onBatchApply, onBatchPreview }: FixListViewProps) {
+export function FixListView({
+  fixes,
+  onApprove,
+  onReject,
+  onApply,
+  onBatchApprove,
+  onBatchReject,
+  onBatchApply,
+  onBatchPreview,
+}: FixListViewProps) {
   const [filter, setFilter] = useState<string>('all')
-  
-  // Phase 15.2: Batch selection state
   const [selectedFixIds, setSelectedFixIds] = useState<Set<number>>(new Set())
-  
-  // Count by status
-  const statusCounts = fixes.reduce((acc, fi
-  
-  // Phase 15.2: Selection handlers
+
+  const statusCounts = fixes.reduce(
+    (acc, fix) => {
+      acc[fix.status] = (acc[fix.status] || 0) + 1
+      return acc
+    },
+    {
+      proposed: 0,
+      approved: 0,
+      rejected: 0,
+      applied: 0,
+      failed: 0,
+    } as Record<Fix['status'], number>,
+  )
+
+  const filteredFixes = filter === 'all' ? fixes : fixes.filter((fix) => fix.status === filter)
+  const allSelected = filteredFixes.length > 0 && selectedFixIds.size === filteredFixes.length
+  const someSelected = selectedFixIds.size > 0 && !allSelected
+
   const toggleFixSelection = (fixId: number) => {
-    const newSelection = new Set(selectedFixIds)
-    if (newSelection.has(fixId)) {
-      newSelection.delete(fixId)
+    const nextSelection = new Set(selectedFixIds)
+    if (nextSelection.has(fixId)) {
+      nextSelection.delete(fixId)
     } else {
-      newSelection.add(fixId)
+      nextSelection.add(fixId)
     }
-    setSelectedFixIds(newSelection)
+    setSelectedFixIds(nextSelection)
   }
-  
+
   const toggleSelectAll = () => {
-    if (selectedFixIds.size === filteredFixes.length) {
-      // Deselect all
+    if (allSelected) {
       setSelectedFixIds(new Set())
-    } else {
-      // Select all visible
-      setSelectedFixIds(new Set(filteredFixes.map(f => f.id)))
+      return
     }
+
+    setSelectedFixIds(new Set(filteredFixes.map((fix) => fix.id)))
   }
-  
-  const clearSelection = ()items-center justify-between gap-4">
+
+  const clearSelection = () => {
+    setSelectedFixIds(new Set())
+  }
+
+  const statusFilters = [
+    { key: 'all', label: 'All', count: fixes.length, icon: Sparkles },
+    { key: 'proposed', label: 'Proposed', count: statusCounts.proposed, icon: Sparkles },
+    { key: 'approved', label: 'Approved', count: statusCounts.approved, icon: CheckCircle2 },
+    { key: 'applied', label: 'Applied', count: statusCounts.applied, icon: CheckCircle2 },
+    { key: 'rejected', label: 'Rejected', count: statusCounts.rejected, icon: XCircle },
+    { key: 'failed', label: 'Failed', count: statusCounts.failed, icon: AlertCircle },
+  ]
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2">
           {statusFilters.map(({ key, label, count, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setFilter(key)}
               className={`
-                px-2 py-1 rounded text-xs font-medium transition-colors
-                flex items-center gap-1 border
+                flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors
                 ${
                   filter === key
-                    ? 'bg-neutral-800 text-neutral-100 border-neutral-700'
-                    : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:bg-neutral-850'
+                    ? 'border-neutral-700 bg-neutral-800 text-neutral-100'
+                    : 'border-neutral-800 bg-neutral-900 text-neutral-400 hover:bg-neutral-850'
                 }
               `}
             >
-              {Icon && <Icon className="w-3 h-3" />}
+              <Icon className="h-3 w-3" />
               <span>{label}</span>
               <span className="ml-1 text-[10px] opacity-70">({count})</span>
             </button>
           ))}
         </div>
-        
-        {/* Phase 15.2: Select All/None */}
+
         {filteredFixes.length > 0 && (
           <button
             onClick={toggleSelectAll}
-            className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
+            className="text-xs text-neutral-400 transition-colors hover:text-neutral-200"
           >
             {allSelected ? 'Deselect All' : someSelected ? 'Select All' : 'Select All'}
           </button>
-        : 'rejected', label: 'Rejected', count: statusCounts.rejected || 0, icon: XCircle },
-    { key: 'failed', label: 'Failed', count: statusCounts.failed || 0, icon: AlertCircle },
-  ]
+        )}
+      </div>
 
-  return (
-    <div className="space-y-2">
-      {/* Status Filter Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {statusFilters.map(({ key, label, count, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`
-              px-2 py-1 rounded text-xs font-medium transition-colors
-              flex items-center gap-1 border
-              ${
-                filter === key
-          Phase 15.2: Batch Action Toolbar */}
       {selectedFixIds.size > 0 && (
-        <div className="sticky top-0 z-10 bg-neutral-900/95 backdrop-blur-sm border border-neutral-800 rounded p-2 flex items-center justify-between">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded border border-neutral-800 bg-neutral-900/95 p-2 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-neutral-400">
-              {selectedFixIds.size} selected
-            </span>
+            <span className="text-xs text-neutral-400">{selectedFixIds.size} selected</span>
             <button
               onClick={clearSelection}
-              className="text-xs text-neutral-500 hover:text-neutral-300 underline"
+              className="text-xs text-neutral-500 underline transition-colors hover:text-neutral-300"
             >
               Clear
             </button>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {onBatchPreview && (
               <button
                 onClick={() => onBatchPreview(Array.from(selectedFixIds))}
-                className="px-3 py-1 text-xs bg-neutral-800 hover:bg-neutral-750 text-neutral-200 rounded border border-neutral-700 transition-colors"
+                className="rounded border border-neutral-700 bg-neutral-800 px-3 py-1 text-xs text-neutral-200 transition-colors hover:bg-neutral-750"
               >
                 Preview Patch
               </button>
@@ -156,7 +168,7 @@ export function FixListView({ fixes, onApprove, onReject, onApply, onBatchApprov
                   onBatchApprove(Array.from(selectedFixIds))
                   clearSelection()
                 }}
-                className="px-3 py-1 text-xs bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded border border-green-800 transition-colors"
+                className="rounded border border-green-800 bg-green-900/30 px-3 py-1 text-xs text-green-300 transition-colors hover:bg-green-900/50"
               >
                 Approve Selected
               </button>
@@ -167,7 +179,7 @@ export function FixListView({ fixes, onApprove, onReject, onApply, onBatchApprov
                   onBatchReject(Array.from(selectedFixIds))
                   clearSelection()
                 }}
-                className="px-3 py-1 text-xs bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded border border-red-800 transition-colors"
+                className="rounded border border-red-800 bg-red-900/30 px-3 py-1 text-xs text-red-300 transition-colors hover:bg-red-900/50"
               >
                 Reject Selected
               </button>
@@ -178,7 +190,7 @@ export function FixListView({ fixes, onApprove, onReject, onApply, onBatchApprov
                   onBatchApply(Array.from(selectedFixIds))
                   clearSelection()
                 }}
-                className="px-3 py-1 text-xs bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 rounded border border-blue-800 transition-colors"
+                className="rounded border border-blue-800 bg-blue-900/30 px-3 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-900/50"
               >
                 Apply Selected
               </button>
@@ -186,53 +198,35 @@ export function FixListView({ fixes, onApprove, onReject, onApply, onBatchApprov
           </div>
         </div>
       )}
-      
-      {/* Fixes List */}
+
       {filteredFixes.length === 0 ? (
-        <div className="text-center py-8 border border-dashed border-neutral-800 rounded-lg">
-          <p className="text-neutral-500 text-xs">
-            {filter === 'all' 
-              ? 'No fixes generated yet' 
-              : `No ${filter} fixes`
-            }
+        <div className="rounded-lg border border-dashed border-neutral-800 py-8 text-center">
+          <p className="text-xs text-neutral-500">
+            {filter === 'all' ? 'No fixes generated yet' : `No ${filter} fixes`}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           {filteredFixes.map((fix) => (
             <div key={fix.id} className="flex items-start gap-2">
-              {/* Phase 15.2: Checkbox Selection */}
               <div className="pt-3">
                 <input
                   type="checkbox"
                   checked={selectedFixIds.has(fix.id)}
                   onChange={() => toggleFixSelection(fix.id)}
-                  className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                  className="h-4 w-4 cursor-pointer rounded border-neutral-700 bg-neutral-900 text-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
                 />
               </div>
-              
+
               <div className="flex-1">
                 <FixApprovalCard
-                  key={fix.id}
                   fix={fix}
                   onApprove={onApprove}
                   onReject={onReject}
                   onApply={onApply}
                 />
               </div>
-            </div
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredFixes.map((fix) => (
-            <FixApprovalCard
-              key={fix.id}
-              fix={fix}
-              onApprove={onApprove}
-              onReject={onReject}
-              onApply={onApply}
-            />
+            </div>
           ))}
         </div>
       )}
