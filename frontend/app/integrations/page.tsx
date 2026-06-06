@@ -8,7 +8,7 @@
  * - View PR analysis activity log
  */
 "use client";
-export const dynamic = 'force-dynamic';
+
 
 
 
