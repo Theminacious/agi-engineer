@@ -7,10 +7,10 @@
  * - Enable/disable auto-analysis
  * - View PR analysis activity log
  */
-
+"use client";
 export const dynamic = 'force-dynamic';
 
-"use client";
+
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
