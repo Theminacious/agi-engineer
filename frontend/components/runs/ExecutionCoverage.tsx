@@ -99,7 +99,7 @@ export default function ExecutionCoverage({
           {/* Execution banner */}
           <div className="bg-purple-50 border border-purple-200 rounded p-3">
             <p className="text-xs text-purple-700">
-              <strong>Immutable Governance:</strong> Your AGI's capabilities are determined at run-time and recorded permanently in the ledger for complete transparency.
+              <strong>Immutable Governance:</strong> Your AGI&apos;s capabilities are determined at run-time and recorded permanently in the ledger for complete transparency.
             </p>
           </div>
 

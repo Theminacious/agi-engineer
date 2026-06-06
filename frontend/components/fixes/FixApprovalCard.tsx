@@ -287,7 +287,7 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
                 <span className="font-medium">Rejected by:</span> {fix.rejected_by}
                 {fix.rejected_at && ` on ${new Date(fix.rejected_at).toLocaleString()}`}
                 {fix.rejection_reason && (
-                  <div className="mt-1 italic text-neutral-500">"{fix.rejection_reason}"</div>
+                  <div className="mt-1 italic text-neutral-500">&ldquo;{fix.rejection_reason}&rdquo;</div>
                 )}
               </div>
             )}

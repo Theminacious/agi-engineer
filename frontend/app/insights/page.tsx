@@ -71,7 +71,7 @@ interface TrendDataPoint {
   total_risks: number;
 }
 
-export default function InsightsPage() {
+function InsightsPageContent() {
   const searchParams = useSearchParams();
   const repoId = searchParams.get('repo_id');
   
@@ -538,5 +538,22 @@ export default function InsightsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InsightsPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600" />
+            <p className="text-gray-600">Loading insights...</p>
+          </div>
+        </div>
+      }
+    >
+      <InsightsPageContent />
+    </React.Suspense>
   );
 }

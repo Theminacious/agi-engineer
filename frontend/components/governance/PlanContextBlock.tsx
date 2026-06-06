@@ -151,7 +151,7 @@ export default function PlanContextBlock({ plan: propPlan, timestamp }: PlanCont
           <div className="bg-blue-50 border border-blue-200 rounded p-4">
             <p className="text-xs text-blue-700 leading-relaxed">
               <Lock className="w-3 h-3 text-blue-600 inline-block mr-1" />
-              <strong>Immutable Governance:</strong> Your AGI's capabilities are determined by your intelligence experience before execution and recorded permanently in the ledger. This ensures transparent, auditable access control for every analysis run.
+              <strong>Immutable Governance:</strong> Your AGI&apos;s capabilities are determined by your intelligence experience before execution and recorded permanently in the ledger. This ensures transparent, auditable access control for every analysis run.
             </p>
           </div>
 

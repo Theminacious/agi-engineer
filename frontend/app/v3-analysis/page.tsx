@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { PiecesStyleAnalysis } from '@/components/PiecesStyleAnalysis';
 import { apiClient } from '@/lib/api';
-import { Header } from '@/components/layout';
+import { AppShell } from '@/components/layout';
 
 interface AgentOption {
   id: string;
@@ -98,8 +98,7 @@ export default function V3AnalysisPage() {
   };
 
   return (
-    <>
-      <Header />
+    <AppShell>
       <main className="min-h-screen bg-background">
         {results ? (
           <PiecesStyleAnalysis results={results} onBack={() => setResults(null)} />
@@ -217,6 +216,6 @@ export default function V3AnalysisPage() {
           </div>
         )}
       </main>
-    </>
+    </AppShell>
   );
 }

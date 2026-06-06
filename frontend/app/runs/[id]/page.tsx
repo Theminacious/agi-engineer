@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getRunDetail, AnalysisRunDetail, API_BASE } from '@/lib/api'
-import { AppShell, Loading, ErrorAlert, StatusBadge, CategoryBadge } from '@/components/layout'
+import { AppShell, Loading, ErrorAlert, StatusBadge } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -346,7 +346,7 @@ export default function RunDetailPage() {
                     <TableCell className="font-mono text-sm text-muted-foreground">{r.line_number}</TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">{r.code}</TableCell>
                     <TableCell className="text-sm">{r.name}</TableCell>
-                    <TableCell><CategoryBadge category={r.category} /></TableCell>
+                    <TableCell><Badge variant="secondary" className="capitalize">{r.category}</Badge></TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-lg">{r.message}</TableCell>
                     <TableCell>
                       {r.is_fixed ? (
