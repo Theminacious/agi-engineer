@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOAuthUrl, oauthCallback } from '@/lib/api'
 import { Github, AlertCircle, ShieldCheck, Zap, Terminal, Command, CheckCircle2 } from 'lucide-react'
@@ -66,11 +66,15 @@ export default function AuthPage() {
     }
   }
 
+  const callbackCalled = useRef(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const state = params.get('state')
-    if (code && state) handleCallback(code, state)
+    if (code && state && !callbackCalled.current) {
+      callbackCalled.current = true
+      handleCallback(code, state)
+    }
   }, [])
 
   const handleLogin = async () => {
