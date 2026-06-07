@@ -1,12 +1,4 @@
-"""V1 Core Engine wrapper for V2 backend.
-
-This module provides integration between V1 analysis engine and V2 FastAPI backend.
-It handles:
-- Repository cloning and setup
-- V1 analysis execution (Ruff + ESLint)
-- Result mapping to V2 database models
-- Error handling and cleanup
-"""
+"""V1 Core Engine wrapper for V2 backend."""
 
 import subprocess
 import tempfile
@@ -19,7 +11,6 @@ from datetime import datetime
 from app.models.analysis_result import AnalysisResult, IssueCategory
 import logging
 
-# Import RuleClassifier from agent directory
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from agent.rule_classifier import RuleClassifier, RuleCategory
 
@@ -27,61 +18,29 @@ logger = logging.getLogger(__name__)
 
 
 class V1AnalysisEngine:
-    """Wrapper for V1 analysis engine."""
-
     def __init__(self, groq_api_key: Optional[str] = None):
-        """Initialize analysis engine.
-        
-        Args:
-            groq_api_key: Optional Groq API key for AI analysis
-        """
         self.groq_api_key = groq_api_key
         self.temp_dirs: List[str] = []
 
-    def analyze_repository(
-        self,
-        repo_url: str,
-        branch: str = "main",
-        commit_sha: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Analyze a repository using V1 engine.
-        
-        Args:
-            repo_url: GitHub repository URL
-            branch: Branch to analyze (default: main)
-            commit_sha: Specific commit SHA to analyze
-            
-        Returns:
-            Dict with analysis results, statistics, errors
-            
-        Raises:
-            Exception: If analysis fails
-        """
+    def analyze_repository(self, repo_url: str, branch: str = "main", commit_sha: Optional[str] = None) -> Dict[str, Any]:
         temp_dir = None
         try:
-            # Create temporary directory
             temp_dir = tempfile.mkdtemp(prefix="agi-analysis-")
             self.temp_dirs.append(temp_dir)
             logger.info(f"Created temp directory: {temp_dir}")
 
-            # Clone repository
             self._clone_repository(repo_url, temp_dir, branch)
             logger.info(f"Cloned repository to {temp_dir}")
 
-            # Checkout specific commit if provided
             if commit_sha:
                 self._checkout_commit(temp_dir, commit_sha)
-                logger.info(f"Checked out commit: {commit_sha}")
 
-            # Run Ruff analysis (Python)
             ruff_results = self._run_ruff_analysis(temp_dir)
             logger.info(f"Ruff analysis found {len(ruff_results)} issues")
 
-            # Run ESLint analysis (JavaScript/TypeScript)
             eslint_results = self._run_eslint_analysis(temp_dir)
             logger.info(f"ESLint analysis found {len(eslint_results)} issues")
 
-            # Combine results
             all_issues = ruff_results + eslint_results
 
             return {
@@ -106,101 +65,63 @@ class V1AnalysisEngine:
             }
 
         finally:
-            # Cleanup temp directory
             if temp_dir and Path(temp_dir).exists():
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                logger.info(f"Cleaned up temp directory: {temp_dir}")
 
     def _clone_repository(self, repo_url: str, target_dir: str, branch: str) -> None:
-        """Clone repository to target directory.
-        
-        Args:
-            repo_url: Repository URL
-            target_dir: Target directory
-            branch: Branch to clone
-            
-        Raises:
-            subprocess.CalledProcessError: If clone fails
-        """
-        cmd = [
-            "git",
-            "clone",
-            "--depth=1",
-            "--branch",
-            branch,
-            repo_url,
-            target_dir,
-        ]
+        cmd = ["git", "clone", "--depth=1", "--branch", branch, repo_url, target_dir]
         subprocess.run(cmd, check=True, capture_output=True, timeout=60)
 
     def _checkout_commit(self, repo_dir: str, commit_sha: str) -> None:
-        """Checkout specific commit.
-        
-        Args:
-            repo_dir: Repository directory
-            commit_sha: Commit SHA to checkout
-            
-        Raises:
-            subprocess.CalledProcessError: If checkout fails
-        """
         cmd = ["git", "-C", repo_dir, "checkout", commit_sha]
         subprocess.run(cmd, check=True, capture_output=True, timeout=30)
 
     def _run_ruff_analysis(self, repo_dir: str) -> List[Dict[str, Any]]:
-        """Run Ruff analysis on Python code.
-        
-        Args:
-            repo_dir: Repository directory
-            
-        Returns:
-            List of issues found
-        """
         try:
             cmd = ["ruff", "check", repo_dir, "--output-format=json"]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=120,
-                text=True,
-            )
-
-            # Ruff returns exit code 1 if issues found
+            result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
             if result.returncode in [0, 1]:
                 try:
                     issues = json.loads(result.stdout) if result.stdout else []
                     return self._normalize_ruff_issues(issues)
                 except json.JSONDecodeError:
-                    logger.warning("Failed to parse Ruff JSON output")
                     return []
             else:
                 logger.error(f"Ruff failed: {result.stderr}")
                 return []
-
         except subprocess.TimeoutExpired:
-            logger.error("Ruff analysis timed out")
             return []
         except FileNotFoundError:
-            logger.warning("Ruff not installed, skipping Python analysis")
+            logger.warning("Ruff not installed")
             return []
 
     def _run_eslint_analysis(self, repo_dir: str) -> List[Dict[str, Any]]:
-        """Run ESLint analysis on JavaScript/TypeScript code.
-        
-        Args:
-            repo_dir: Repository directory
-            
-        Returns:
-            List of issues found
-        """
         try:
+            # Create a temporary eslint config for the analysis
+            eslint_config = {
+                "env": {"browser": True, "es2021": True, "node": True},
+                "parser": "@typescript-eslint/parser",
+                "plugins": ["@typescript-eslint"],
+                "rules": {
+                    "no-unused-vars": "warn",
+                    "no-console": "warn",
+                    "no-undef": "warn",
+                    "prefer-const": "warn",
+                    "no-var": "warn",
+                    "@typescript-eslint/no-unused-vars": "warn",
+                    "@typescript-eslint/no-explicit-any": "warn",
+                }
+            }
+            
+            config_path = Path(repo_dir) / ".eslintrc.json"
+            with open(config_path, "w") as f:
+                json.dump(eslint_config, f)
+
             cmd = [
                 "eslint",
-                repo_dir,
+                ".",
                 "--format=json",
                 "--ext=.js,.jsx,.ts,.tsx",
-                "--no-eslintrc",
-                "--rule", '{"no-unused-vars": "warn"}',
-                "--rule", '{"no-console": "warn"}',
             ]
             result = subprocess.run(
                 cmd,
@@ -210,34 +131,26 @@ class V1AnalysisEngine:
                 cwd=repo_dir,
             )
 
-            # ESLint returns exit code 1 if issues found
+            # Cleanup config
+            config_path.unlink(missing_ok=True)
+
             if result.returncode in [0, 1]:
                 try:
                     issues = json.loads(result.stdout) if result.stdout else []
                     return self._normalize_eslint_issues(issues)
                 except json.JSONDecodeError:
-                    logger.warning("Failed to parse ESLint JSON output")
                     return []
             else:
                 logger.error(f"ESLint failed: {result.stderr}")
                 return []
 
         except subprocess.TimeoutExpired:
-            logger.error("ESLint analysis timed out")
             return []
         except FileNotFoundError:
-            logger.warning("ESLint not installed, skipping JavaScript analysis")
+            logger.warning("ESLint not installed")
             return []
 
     def _normalize_ruff_issues(self, issues: List[Dict]) -> List[Dict[str, Any]]:
-        """Normalize Ruff issues to V2 format.
-        
-        Args:
-            issues: Raw Ruff issues
-            
-        Returns:
-            Normalized issues
-        """
         normalized = []
         for issue in issues:
             normalized.append({
@@ -253,14 +166,6 @@ class V1AnalysisEngine:
         return normalized
 
     def _normalize_eslint_issues(self, files: List[Dict]) -> List[Dict[str, Any]]:
-        """Normalize ESLint issues to V2 format.
-        
-        Args:
-            files: ESLint report with messages
-            
-        Returns:
-            Normalized issues
-        """
         normalized = []
         for file_data in files:
             file_path = file_data.get("filePath", "")
@@ -271,46 +176,32 @@ class V1AnalysisEngine:
                     "issue_code": message.get("ruleId", ""),
                     "issue_name": message.get("ruleId", ""),
                     "category": self._categorize_issue("javascript", message.get("ruleId", "")),
-                    "severity": message.get("severity", 1),  # 1=warning, 2=error
+                    "severity": "error" if message.get("severity") == 2 else "warning",
                     "message": message.get("message", ""),
                     "language": "javascript",
                 })
         return normalized
 
     def _categorize_issue(self, language: str, code: str) -> str:
-        """Categorize issue as safe, review, or suggestion.
-        
-        Args:
-            language: Language (python, javascript)
-            code: Issue code/rule ID
-            
-        Returns:
-            Category: safe, review, or suggestion
-        """
-        # Use RuleClassifier for Python rules
         if language == "python":
             classifier = RuleClassifier()
             classification = classifier.classify(code)
-            
-            # Map RuleCategory to IssueCategory
             if classification.get('category') == RuleCategory.SAFE:
                 return IssueCategory.SAFE.value
             elif classification.get('category') == RuleCategory.RISKY:
                 return IssueCategory.REVIEW.value
             else:
                 return IssueCategory.SUGGESTION.value
-        else:  # javascript - keep simple heuristic for now
-            if code in ["no-console", "no-unused-vars", "semi"]:
+        else:
+            if code in ["no-console", "no-unused-vars", "prefer-const", "no-var"]:
                 return IssueCategory.SAFE.value
-            elif code in ["require-jsdoc", "indent"]:
+            elif code in ["@typescript-eslint/no-unused-vars", "@typescript-eslint/no-explicit-any"]:
                 return IssueCategory.REVIEW.value
             else:
                 return IssueCategory.SUGGESTION.value
 
     def cleanup(self) -> None:
-        """Cleanup all temporary directories."""
         for temp_dir in self.temp_dirs:
             if Path(temp_dir).exists():
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                logger.info(f"Cleaned up: {temp_dir}")
         self.temp_dirs.clear()
