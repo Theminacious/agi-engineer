@@ -194,11 +194,13 @@ class V1AnalysisEngine:
         """
         try:
             cmd = [
-                "npx",
                 "eslint",
                 repo_dir,
                 "--format=json",
                 "--ext=.js,.jsx,.ts,.tsx",
+                "--no-eslintrc",
+                "--rule", '{"no-unused-vars": "warn"}',
+                "--rule", '{"no-console": "warn"}',
             ]
             result = subprocess.run(
                 cmd,
