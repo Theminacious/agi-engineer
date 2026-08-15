@@ -71,3 +71,10 @@ V2_COMPLETE.md
 # Git temp files
 *.orig
 *.rej
+backend/.env
+
+# Local runtime DB
+agi_engineer_v2.db
+
+# Local runtime DB
+agi_engineer_v2.db
