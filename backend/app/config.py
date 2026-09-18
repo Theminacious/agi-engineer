@@ -25,10 +25,12 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
+    
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     api_env: str = "development"
+    frontend_url: str = "http://localhost:3000"
 
     # Security
     jwt_secret_key: str = ""
