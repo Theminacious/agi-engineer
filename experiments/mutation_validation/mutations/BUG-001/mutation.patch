@@ -1,0 +1,13 @@
+diff --git a/src/flask/app.py b/src/flask/app.py
+index 0c5b20ea..212e3c61 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -402,7 +402,7 @@ class Flask(App):
+         .. versionadded:: 0.5
+
+         """
+-        if not self.has_static_folder:
++        if False:
+             raise RuntimeError("'static_folder' must be set to serve static_files.")
+
+         # send_file only knows to call get_send_file_max_age on the app,

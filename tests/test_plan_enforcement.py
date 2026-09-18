@@ -23,7 +23,7 @@ from app.plans import (
     UserPlanContext,
     create_plan_context,
     create_default_plan_context,
-    get_plan_by_tier,
+    get_plan,
     DEVELOPER_PLAN,
     TEAM_PLAN,
     ENTERPRISE_PLAN,
@@ -184,9 +184,22 @@ class TestOrchestratorPlanEnforcement:
         
         # Should execute more analyzers than developer plan
         assert len(orchestrator.analyzers) > 0
-        
-        # Should have no skipped analyzers (team has all analyzers)
-        assert len(orchestrator.skipped_analyzers) == 0
+
+        # Team gets every analyzer except the one Phase 16 made enterprise-only
+        # (PHASE_16_COMPLETION.md: "Team Plan: 4 reliability analyzers, all
+        # except scalability_risk"). The old assertion here was
+        # `len(skipped) == 0` under the pre-Phase-16 premise that team had
+        # everything; enforcement correctly skips scalability_risk, so pin the
+        # exact identity rather than a count.
+        assert [s['analyzer_id'] for s in orchestrator.skipped_analyzers] == [
+            'scalability_risk'
+        ]
+        assert 'higher plan tier' in orchestrator.skipped_analyzers[0]['reason']
+
+        # The skip must be a gating decision, not a silent disappearance: the
+        # analyzer is real and registered, just not sold at this tier.
+        from agent.intelligence.registry import ANALYZER_REGISTRY
+        assert ANALYZER_REGISTRY['scalability_risk']['min_plan'] == 'enterprise'
         
     def test_orchestrator_without_plan_context_backward_compat(self, temp_repo):
         """Test orchestrator without plan context (backward compatibility)."""
@@ -344,7 +357,7 @@ class TestPlanHierarchy:
     
     def test_developer_plan_has_basic_analyzers(self):
         """Test developer plan includes basic analyzers."""
-        plan = get_plan_by_tier(PlanTier.DEVELOPER)
+        plan = get_plan(PlanTier.DEVELOPER)
         analyzer_ids = plan.get_all_analyzer_ids()
         
         assert 'architectural' in analyzer_ids
@@ -354,7 +367,7 @@ class TestPlanHierarchy:
         
     def test_team_plan_has_enhanced_analyzers(self):
         """Test team plan includes enhanced analyzers."""
-        plan = get_plan_by_tier(PlanTier.TEAM)
+        plan = get_plan(PlanTier.TEAM)
         analyzer_ids = plan.get_all_analyzer_ids()
         
         # Should have basic analyzers
@@ -367,15 +380,47 @@ class TestPlanHierarchy:
         assert 'enhanced_concurrency' in analyzer_ids
         
     def test_enterprise_plan_has_all_analyzers(self):
-        """Test enterprise plan has same as team (all analyzers)."""
-        team_plan = get_plan_by_tier(PlanTier.TEAM)
-        enterprise_plan = get_plan_by_tier(PlanTier.ENTERPRISE)
-        
-        # Both should have same analyzers (no analyzer exclusivity beyond team)
+        """Test enterprise plan carries every registered analyzer, team all but one.
+
+        This test previously asserted `team_ids == enterprise_ids`, on the
+        premise that no analyzer was enterprise-exclusive. Phase 16 ended that
+        premise by introducing the first one. Per PHASE_16_COMPLETION.md:
+
+            Developer Plan:  No reliability analyzers
+            Team Plan:       4 reliability analyzers (all except scalability_risk)
+            Enterprise Plan: All 5 reliability analyzers
+
+        and ANALYZER_REGISTRY['scalability_risk']['min_plan'] == 'enterprise',
+        which is committed Phase 16 intent rather than a default. The equality
+        is therefore replaced by the real relationship, and the test now also
+        checks what its name has always claimed: that enterprise holds *all*
+        registered analyzers, so a newly registered analyzer cannot silently
+        go unsold.
+        """
+        from agent.intelligence.registry import ANALYZER_REGISTRY
+
+        team_plan = get_plan(PlanTier.TEAM)
+        enterprise_plan = get_plan(PlanTier.ENTERPRISE)
+
         team_ids = set(team_plan.get_all_analyzer_ids())
         enterprise_ids = set(enterprise_plan.get_all_analyzer_ids())
-        
-        assert team_ids == enterprise_ids
+
+        # "has all analyzers", asserted literally against the registry.
+        assert enterprise_ids == set(ANALYZER_REGISTRY), (
+            "enterprise plan must expose every registered analyzer; "
+            f"missing={sorted(set(ANALYZER_REGISTRY) - enterprise_ids)} "
+            f"unknown={sorted(enterprise_ids - set(ANALYZER_REGISTRY))}"
+        )
+
+        # Team is strictly smaller, and differs by exactly scalability_risk.
+        assert team_ids < enterprise_ids
+        assert enterprise_ids - team_ids == {'scalability_risk'}
+
+        # The gap must agree with the registry's own gating metadata.
+        assert {
+            aid for aid, meta in ANALYZER_REGISTRY.items()
+            if meta['min_plan'] == 'enterprise'
+        } == {'scalability_risk'}
 
 
 class TestSummaryWithSkippedAnalyzers:

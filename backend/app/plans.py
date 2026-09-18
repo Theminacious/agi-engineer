@@ -48,7 +48,10 @@ class ServiceCapability(str, Enum):
     SECURITY_ANALYSIS = "security_analysis"
     TEST_COVERAGE_ANALYSIS = "test_coverage_analysis"
     CONFIGURATION_ANALYSIS = "configuration_analysis"
-    
+    # Reliability Services (Phase 16)
+    RELIABILITY_ANALYSIS = "reliability_analysis"
+    ADVANCED_RELIABILITY_ANALYSIS = "advanced_reliability_analysis"
+
     # Governance Services
     IMMUTABLE_LEDGER = "immutable_ledger"
     REPLAY_VERIFICATION = "replay_verification"
@@ -219,6 +222,22 @@ _SERVICE_TO_ANALYZER_MAP: Dict[ServiceCapability, List[str]] = {
     ServiceCapability.ADVANCED_PERFORMANCE_ANALYSIS: [
         "enhanced_performance",
     ],
+
+    # Reliability Services (Phase 16)
+    # Tiering per PHASE_16_COMPLETION.md and ANALYZER_REGISTRY min_plan:
+    # developer gets none, team gets these four, enterprise additionally
+    # gets scalability_risk via ADVANCED_RELIABILITY_ANALYSIS.
+    ServiceCapability.RELIABILITY_ANALYSIS: [
+        "crash_risk",
+        "edge_case_logic",
+        "reliability_pattern",
+        "resource_leak",
+    ],
+
+    # Advanced Reliability Services (Phase 16, enterprise only)
+    ServiceCapability.ADVANCED_RELIABILITY_ANALYSIS: [
+        "scalability_risk",
+    ],
     
     # Basic Concurrency Services
     ServiceCapability.BASIC_CONCURRENCY_ANALYSIS: [
@@ -311,7 +330,10 @@ TEAM_PLAN = SubscriptionPlan(
         ServiceCapability.ADVANCED_ARCHITECTURE_ANALYSIS,
         ServiceCapability.ADVANCED_PERFORMANCE_ANALYSIS,
         ServiceCapability.ADVANCED_CONCURRENCY_ANALYSIS,
-        
+
+        # Reliability analysis (Phase 16); scalability_risk stays enterprise-only
+        ServiceCapability.RELIABILITY_ANALYSIS,
+
         # Advanced governance
         ServiceCapability.IMMUTABLE_LEDGER,
         ServiceCapability.REPLAY_VERIFICATION,
@@ -366,7 +388,11 @@ ENTERPRISE_PLAN = SubscriptionPlan(
         ServiceCapability.SECURITY_ANALYSIS,
         ServiceCapability.TEST_COVERAGE_ANALYSIS,
         ServiceCapability.CONFIGURATION_ANALYSIS,
-        
+
+        # Reliability analysis (Phase 16): full set, including scalability_risk
+        ServiceCapability.RELIABILITY_ANALYSIS,
+        ServiceCapability.ADVANCED_RELIABILITY_ANALYSIS,
+
         # Enterprise governance
         ServiceCapability.IMMUTABLE_LEDGER,
         ServiceCapability.REPLAY_VERIFICATION,

@@ -84,11 +84,18 @@ def test_plan_filters_enhanced(monkeypatch, temp_repo):
 
     orch = IntelligenceOrchestrator()
     # developer plan (default) -> only baseline
-    base = orch._resolve_analyzers(selection=None, plan=None)
+    base, base_skipped = orch._resolve_analyzers_with_enforcement(
+        selection=None, plan=None, plan_context=None
+    )
     assert len(base) == 1
     # enterprise plan -> both
-    ent = orch._resolve_analyzers(selection=None, plan="enterprise")
+    ent, ent_skipped = orch._resolve_analyzers_with_enforcement(
+        selection=None, plan="enterprise", plan_context=None
+    )
     assert len(ent) == 2
+    # With no plan_context there is nothing to enforce, so nothing is skipped
+    assert base_skipped == []
+    assert ent_skipped == []
 
 
 def test_selection_only_runs_selected(monkeypatch, temp_repo):
@@ -109,7 +116,9 @@ def test_selection_only_runs_selected(monkeypatch, temp_repo):
 
     sel = AnalyzerSelection(plan="developer", enabled_analyzers=["security", "architectural"])
     orch = IntelligenceOrchestrator()
-    selected = orch._resolve_analyzers(selection=sel, plan=None)
+    selected, skipped = orch._resolve_analyzers_with_enforcement(
+        selection=sel, plan=None, plan_context=None
+    )
     # Should be sorted lexicographically: "architectural" then "security"
     expected_order = ["architectural", "security"]
     actual_names = [a.__class__.__name__ for a in selected]
@@ -117,4 +126,6 @@ def test_selection_only_runs_selected(monkeypatch, temp_repo):
     # Since all are same class, check that we got 2 instances in the right order
     assert len(selected) == 2, "Should have 2 selected analyzers"
     assert actual_names == ["CountingAnalyzer", "CountingAnalyzer"], "Both should be CountingAnalyzer instances"
+    # Selection alone carries no plan enforcement, so nothing is skipped
+    assert skipped == []
 

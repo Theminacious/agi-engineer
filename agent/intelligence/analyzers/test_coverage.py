@@ -54,7 +54,7 @@ class TestCoverageAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -334,7 +334,7 @@ class TestCoverageAnalyzer(BaseAnalyzer):
                         f"Aim for 100% branch coverage for complex code."
                     ),
                     effort_estimate=EffortEstimate.LARGE,
-                    prerequisiate_actions=[
+                    prerequisite_actions=[
                         "Enumerate all branches",
                         "Create test cases for each combination",
                         "Use coverage.py to measure",
@@ -374,21 +374,21 @@ class TestCoverageAnalyzer(BaseAnalyzer):
         critical_keywords = ['payment', 'transaction', 'security', 'password', 'token', 'auth', 'encrypt']
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist', 'tests'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py') or file.startswith('test_'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
+                            self._record_lines(file_path, line_num)
                             
                             for keyword in critical_keywords:
                                 if keyword in line.lower():
@@ -404,21 +404,21 @@ class TestCoverageAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
+                            self._record_lines(file_path, line_num)
                             
                             if re.search(r'except\s+\w+|raise\s+\w+', line):
                                 issues.append((file_path, line_num))
@@ -432,21 +432,21 @@ class TestCoverageAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
+                        self._record_lines(file_path, len(content.split('\n')))
                         
                         # Find functions with high complexity (many if/for/while)
                         functions = re.finditer(r'def\s+\w+.*?:\n(.*?)(?=\ndef |\Z)', content, re.DOTALL)

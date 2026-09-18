@@ -65,7 +65,6 @@ def test_intelligence_standalone_no_ledger():
         print(f"✓ All {len(proposals)} proposals are schema-valid")
         assert len(proposals) > 0, "Expected at least some proposals"
         print(f"✓ TEST 1 PASSED: Intelligence works standalone\n")
-        return True
         
     finally:
         shutil.rmtree(test_repo, ignore_errors=True)
@@ -143,7 +142,6 @@ def test_intelligence_with_ledger():
         
         print(f"✓ All events have required fields")
         print(f"✓ TEST 2 PASSED: Intelligence works with ledger\n")
-        return True
         
     finally:
         shutil.rmtree(test_repo, ignore_errors=True)
@@ -195,7 +193,6 @@ def test_ledger_failure_nonfatal():
         
         print(f"✓ All proposals remain valid despite ledger failure")
         print(f"✓ TEST 3 PASSED: Ledger failures are non-fatal\n")
-        return True
         
     finally:
         shutil.rmtree(test_repo, ignore_errors=True)
@@ -271,7 +268,6 @@ def test_ledger_append_only():
         
         print(f"✓ Event sequences are monotonically increasing (append-only verified)")
         print(f"✓ TEST 4 PASSED: Ledger is append-only\n")
-        return True
         
     finally:
         shutil.rmtree(test_repo, ignore_errors=True)
@@ -290,100 +286,141 @@ def test_no_analyzer_ledger_imports():
     print("TEST 5: No Analyzer Ledger Imports")
     print("="*70)
     
-    analyzer_dir = Path(__file__).parent / "agent" / "intelligence" / "analyzers"
-    
-    # Check all analyzer files
-    analyzer_files = list(analyzer_dir.glob("*.py"))
-    
+    analyzer_dir = Path(__file__).resolve().parents[1] / "agent" / "intelligence" / "analyzers"
+
+    # parents[1] is the repository root. This previously read
+    # `Path(__file__).parent / "agent" / ...`, i.e. tests/agent/..., which does
+    # not exist — glob returned nothing, zero files were scanned and the guard
+    # passed no matter what the analyzers imported.
+    assert analyzer_dir.is_dir(), f"Analyzer directory not found: {analyzer_dir}"
+
+    # rglob, not glob: the reliability/ analyzers are subpackages and a top-level
+    # glob skipped them entirely.
+    analyzer_files = [
+        path for path in analyzer_dir.rglob("*.py")
+        if path.name != "__init__.py" and "__pycache__" not in path.parts
+    ]
+    assert analyzer_files, f"No analyzer modules found under {analyzer_dir}"
+
     forbidden_imports = [
         'run_ledger',
         'ledger_adapter',
         'RunLedgerWriter',
         'append_event',
     ]
-    
+
     violations = []
-    
+
     for analyzer_file in analyzer_files:
-        if analyzer_file.name == '__init__.py':
-            continue
-        
         content = analyzer_file.read_text()
-        
+
         for forbidden in forbidden_imports:
             if forbidden in content:
                 violations.append(f"{analyzer_file.name}: contains '{forbidden}'")
-    
-    if violations:
-        print(f"✗ Ledger imports found in analyzers:")
-        for v in violations:
-            print(f"  - {v}")
-        return False
-    
-    print(f"✓ Scanned {len(analyzer_files) - 1} analyzer files")
+
+    # assert, not `return False`: pytest treats a returned value as a pass, so
+    # the old form reported success while listing the violations it found.
+    assert not violations, (
+        "Analyzers must stay ledger-independent: " + "; ".join(violations)
+    )
+
+    print(f"✓ Scanned {len(analyzer_files)} analyzer files")
     print(f"✓ No ledger imports found in any analyzer")
     print(f"✓ TEST 5 PASSED: Analyzers are ledger-independent\n")
-    return True
 
 
 def test_proposals_deterministic():
     """
     TEST 6: Proposals are deterministic.
-    
-    Verifies that running analysis twice on same code
-    produces identical proposals.
+
+    Compares the COMPLETE serialized payload of every proposal, in order.
+
+    This previously compared `set((bug_class, problem_statement))`, which is
+    blind to almost everything a replay depends on: the set discards ordering
+    and duplicates, and the two fields it keeps exclude proposal_id,
+    affected_files, severity, confidence, patterns_matched and the scan metrics.
+    Under that comparison an engine in which every proposal carried the same
+    proposal_id, and in which affected_files ordering varied between runs, still
+    passed.
+
+    `to_dict()` is the replay payload and excludes exactly two intentionally
+    runtime-specific readings, both documented on
+    `IntelligenceProposal.to_dict`: `timestamp` (when the run happened) and
+    `analysis_duration_ms` (how long it took). Both remain on the object and are
+    recorded in the ledger event's metadata block, so nothing is hidden here —
+    they are simply not part of what the same source code must reproduce.
+    Everything else is compared verbatim.
     """
     print("\n" + "="*70)
     print("TEST 6: Proposal Determinism")
     print("="*70)
-    
+
     from agent.intelligence import IntelligenceOrchestrator
-    
+
     test_repo = _create_test_repo()
-    
+
     try:
-        # Run 1
-        orchestrator1 = IntelligenceOrchestrator()
-        proposals1 = orchestrator1.analyze(
-            repository_path=test_repo,
-            repository_url="file://" + test_repo,
-            branch="main",
-            ledger=None,
-        )
-        
-        # Run 2 (same code)
-        orchestrator2 = IntelligenceOrchestrator()
-        proposals2 = orchestrator2.analyze(
-            repository_path=test_repo,
-            repository_url="file://" + test_repo,
-            branch="main",
-            ledger=None,
-        )
-        
+        def run():
+            orchestrator = IntelligenceOrchestrator()
+            return orchestrator.analyze(
+                repository_path=test_repo,
+                repository_url="file://" + test_repo,
+                branch="main",
+                ledger=None,
+            )
+
+        proposals1 = run()
+        proposals2 = run()
+
         print(f"✓ Run 1: {len(proposals1)} proposals")
         print(f"✓ Run 2: {len(proposals2)} proposals")
-        
-        # Compare counts
+
         assert len(proposals1) == len(proposals2), \
             f"Proposal count differs: {len(proposals1)} vs {len(proposals2)}"
-        
+
         print(f"✓ Proposal counts match")
-        
-        # Compare content (by bug class and problem statement)
-        run1_sig = set(
-            (p.bug_class.value, p.problem_statement) for p in proposals1
-        )
-        run2_sig = set(
-            (p.bug_class.value, p.problem_statement) for p in proposals2
-        )
-        
-        assert run1_sig == run2_sig, \
-            f"Proposals differ between runs"
-        
-        print(f"✓ All proposal signatures match (deterministic)")
+
+        payload1 = [p.to_dict() for p in proposals1]
+        payload2 = [p.to_dict() for p in proposals2]
+
+        # Ordering is part of the contract, so compare position by position and
+        # name the first field that diverges rather than just "payloads differ".
+        for index, (first, second) in enumerate(zip(payload1, payload2)):
+            differing = sorted(
+                key for key in set(first) | set(second)
+                if first.get(key) != second.get(key)
+            )
+            assert not differing, (
+                f"proposal {index} ({first.get('analyzer_name')}) differs between "
+                f"runs on {differing}:\n"
+                f"  run 1: { {k: first.get(k) for k in differing} }\n"
+                f"  run 2: { {k: second.get(k) for k in differing} }"
+            )
+
+        assert json.dumps(payload1, sort_keys=True) == json.dumps(payload2, sort_keys=True)
+
+        print(f"✓ Full serialized payloads are byte-identical")
+
+        # A content-addressed id has to distinguish different content, or the
+        # payload comparison above can pass while the ledger cannot tell two
+        # findings apart.
+        ids = [p.proposal_id for p in proposals1]
+        assert len(set(ids)) == len(ids), \
+            f"proposal_id is not unique per proposal: {ids}"
+
+        print(f"✓ {len(ids)} proposals carry {len(set(ids))} distinct proposal_ids")
+
+        # The excluded fields are excluded from to_dict() only; they must still
+        # be present on the object for the ledger's metadata block.
+        for proposal in proposals1:
+            assert proposal.timestamp is not None
+            assert proposal.analysis_duration_ms >= 0
+            assert "timestamp" not in proposal.to_dict()
+            assert "analysis_duration_ms" not in proposal.to_dict()
+
+        print(f"✓ Runtime readings stay on the object, outside the replay payload")
         print(f"✓ TEST 6 PASSED: Proposals are deterministic\n")
-        return True
-        
+
     finally:
         shutil.rmtree(test_repo, ignore_errors=True)
 
@@ -463,7 +500,6 @@ def test_schema_compliance():
         
         print(f"✓ All events have valid summary content")
         print(f"✓ TEST 7 PASSED: Schema compliance verified\n")
-        return True
         
     finally:
         shutil.rmtree(test_repo, ignore_errors=True)

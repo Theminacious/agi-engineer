@@ -18,6 +18,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, CheckCircle2, XCircle, AlertCircle, Github, Activity } from "lucide-react";
+import { apiUrl } from "@/lib/api";
+import { ChangeRiskCard } from "@/components/github/ChangeRiskCard";
+import {
+  fetchPRAnalyses,
+  fetchPRAnalysis,
+  recommendationLabel,
+  riskLevelClassName,
+  riskLevelLabel,
+  type PRAnalysisDetail,
+  type PRAnalysisSummary,
+} from "@/lib/prAnalyses";
 
 interface Installation {
   id: number;
@@ -26,22 +37,6 @@ interface Installation {
   github_org?: string;
   is_active: boolean;
   created_at: string;
-}
-
-interface PRAnalysis {
-  id: number;
-  repository: string;
-  pr_number: number;
-  head_sha: string;
-  status: string;
-  reliability_score?: string;
-  critical_risks_count: number;
-  high_risks_count: number;
-  medium_risks_count: number;
-  fix_candidates_count: number;
-  comment_posted: boolean;
-  status_check_posted: boolean;
-  completed_at?: string;
 }
 
 interface WebhookEvent {
@@ -56,34 +51,86 @@ interface WebhookEvent {
 export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [installations, setInstallations] = useState<Installation[]>([]);
-  const [prAnalyses, setPrAnalyses] = useState<PRAnalysis[]>([]);
+  const [prAnalyses, setPrAnalyses] = useState<PRAnalysisSummary[]>([]);
+  const [repositories, setRepositories] = useState<string[]>([]);
+  const [selectedRepository, setSelectedRepository] = useState<string>("");
   const [webhookEvents, setWebhookEvents] = useState<WebhookEvent[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "activity">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "risk" | "activity">("overview");
+  const [analysesError, setAnalysesError] = useState<string | null>(null);
+  const [analysesLoading, setAnalysesLoading] = useState(false);
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<PRAnalysisDetail | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    loadPRAnalyses();
+  }, [selectedRepository]);
+
+  useEffect(() => {
+    if (selectedAnalysisId === null) {
+      setDetail(null);
+      return;
+    }
+    loadPRAnalysisDetail(selectedAnalysisId);
+  }, [selectedAnalysisId]);
+
+  const loadPRAnalyses = async () => {
+    setAnalysesLoading(true);
+    setAnalysesError(null);
+    try {
+      const data = await fetchPRAnalyses(selectedRepository || undefined);
+      setPrAnalyses(data.analyses);
+      setRepositories(data.repositories);
+      setSelectedAnalysisId((current) => {
+        if (current !== null && data.analyses.some((a) => a.id === current)) return current;
+        return data.analyses.length > 0 ? data.analyses[0].id : null;
+      });
+    } catch (error) {
+      setAnalysesError(
+        error instanceof Error ? error.message : "Failed to load PR analyses",
+      );
+      setPrAnalyses([]);
+    } finally {
+      setAnalysesLoading(false);
+    }
+  };
+
+  const loadPRAnalysisDetail = async (id: number) => {
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      setDetail(await fetchPRAnalysis(id));
+    } catch (error) {
+      setDetailError(
+        error instanceof Error ? error.message : "Failed to load change risk",
+      );
+      setDetail(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
       // Load installations
-      const installationsRes = await fetch("/api/installations");
+      const installationsRes = await fetch(apiUrl("/api/installations"));
       if (installationsRes.ok) {
         const data = await installationsRes.json();
         setInstallations(data.installations || []);
       }
 
       // Load recent webhook events
-      const webhooksRes = await fetch("/api/github/webhook-events?limit=20");
+      const webhooksRes = await fetch(apiUrl("/api/github/webhook-events?limit=20"));
       if (webhooksRes.ok) {
         const data = await webhooksRes.json();
         setWebhookEvents(data.events || []);
       }
-
-      // Load recent PR analyses (would need backend endpoint)
-      // For now, mock data
-      setPrAnalyses([]);
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -96,7 +143,7 @@ export default function IntegrationsPage() {
     window.location.href = "/oauth/authorize";
   };
 
-  const getReliabilityBadge = (score?: string) => {
+  const getReliabilityBadge = (score?: string | null) => {
     if (!score) return null;
     
     const variants: Record<string, { color: string; icon: any }> = {
@@ -160,6 +207,16 @@ export default function IntegrationsPage() {
           }`}
         >
           Overview
+        </button>
+        <button
+          onClick={() => setActiveTab("risk")}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === "risk"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Change Risk
         </button>
         <button
           onClick={() => setActiveTab("activity")}
@@ -301,14 +358,138 @@ export default function IntegrationsPage() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <Badge className={`border ${riskLevelClassName(analysis.change_risk_level)}`}>
+                          {riskLevelLabel(analysis.change_risk_level)}
+                        </Badge>
                         {getReliabilityBadge(analysis.reliability_score)}
-                        {getStatusBadge(analysis.status)}
+                        {getStatusBadge(analysis.status || "pending")}
                       </div>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
+          )}
+        </div>
+      )}
+
+      {activeTab === "risk" && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Analysed pull requests</CardTitle>
+              <CardDescription>
+                Select a PR to see what its change touches and why the risk level is what it is
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {repositories.length > 0 && (
+                <div>
+                  <label
+                    htmlFor="repository-filter"
+                    className="mb-1 block text-sm font-medium"
+                  >
+                    Repository
+                  </label>
+                  <select
+                    id="repository-filter"
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm sm:w-80"
+                    value={selectedRepository}
+                    onChange={(event) => setSelectedRepository(event.target.value)}
+                  >
+                    <option value="">All repositories</option>
+                    {repositories.map((repository) => (
+                      <option key={repository} value={repository}>
+                        {repository}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {analysesLoading && (
+                <div role="status" className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Loading PR analyses…
+                </div>
+              )}
+
+              {!analysesLoading && analysesError && (
+                <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4">
+                  <p className="text-sm font-medium text-red-900">{analysesError}</p>
+                  <Button className="mt-3" variant="outline" onClick={loadPRAnalyses}>
+                    Retry
+                  </Button>
+                </div>
+              )}
+
+              {!analysesLoading && !analysesError && prAnalyses.length === 0 && (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">No PR analyses yet</p>
+                  <p className="mt-1">
+                    Open or update a pull request on a connected repository and its change risk
+                    will appear here.
+                  </p>
+                </div>
+              )}
+
+              {!analysesLoading && !analysesError && prAnalyses.length > 0 && (
+                <ul className="space-y-2">
+                  {prAnalyses.map((analysis) => (
+                    <li key={analysis.id}>
+                      <button
+                        onClick={() => setSelectedAnalysisId(analysis.id)}
+                        aria-current={selectedAnalysisId === analysis.id ? "true" : undefined}
+                        className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border p-4 text-left transition-colors hover:bg-accent ${
+                          selectedAnalysisId === analysis.id ? "border-primary bg-accent" : ""
+                        }`}
+                      >
+                        <span>
+                          <span className="block font-medium">
+                            {analysis.repository} #{analysis.pr_number}
+                          </span>
+                          <span className="block text-sm text-muted-foreground">
+                            {analysis.head_sha.slice(0, 7)} ·{" "}
+                            {recommendationLabel(analysis.change_risk_recommendation)}
+                          </span>
+                        </span>
+                        <Badge className={`border ${riskLevelClassName(analysis.change_risk_level)}`}>
+                          {riskLevelLabel(analysis.change_risk_level)}
+                        </Badge>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {detailLoading && (
+            <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Loading change risk…
+            </div>
+          )}
+
+          {!detailLoading && detailError && selectedAnalysisId !== null && (
+            <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4">
+              <p className="text-sm font-medium text-red-900">{detailError}</p>
+              <Button
+                className="mt-3"
+                variant="outline"
+                onClick={() => loadPRAnalysisDetail(selectedAnalysisId)}
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {!detailLoading && !detailError && detail && (
+            <ChangeRiskCard
+              prNumber={detail.pr_number}
+              repository={detail.repository}
+              changeRisk={detail.change_risk}
+            />
           )}
         </div>
       )}

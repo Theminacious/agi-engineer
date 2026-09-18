@@ -253,12 +253,68 @@ class RunLedgerWriter:
     def get_event_count(self) -> int:
         """
         Get total number of events recorded.
-        
+
         Returns:
             Event count (equals next_sequence)
         """
         return self.next_sequence
-    
+
+    @classmethod
+    def open_or_create(
+        cls,
+        run_id: str,
+        repo_id: str,
+        environment: str = "DEV",
+        initiated_by: str = "CLI",
+    ) -> "RunLedgerWriter":
+        """
+        Open an existing ledger for appending, or create it if absent.
+
+        __init__ always starts at sequence 0 with sealed=False, so reopening a
+        run id that already has events would renumber from 0 and ignore an
+        existing seal. This resumes both from disk instead, which is what any
+        writer appending after the original process exited needs.
+
+        Args:
+            run_id: Run identifier to open or create
+            repo_id: Repository identifier (used only when creating)
+            environment: Execution environment (used only when creating)
+            initiated_by: Trigger (used only when creating)
+
+        Returns:
+            A writer positioned after the last recorded event. Its `sealed`
+            flag reflects the ledger on disk, so append_event refuses writes to
+            a sealed ledger as it would in-process.
+        """
+        writer = cls(
+            run_id=run_id,
+            repo_id=repo_id,
+            environment=environment,
+            initiated_by=initiated_by,
+        )
+
+        if not os.path.exists(writer.ledger_file):
+            writer.create_ledger()
+            return writer
+
+        try:
+            with open(writer.ledger_file, 'r') as f:
+                ledger = json.load(f)
+            writer.started_at = ledger.get('started_at')
+            writer.ended_at = ledger.get('ended_at')
+            writer.sealed = ledger.get('final_state') is not None
+        except Exception as e:
+            logger.warning(f"Could not read ledger metadata for {run_id}: {e}")
+
+        try:
+            if os.path.exists(writer.events_file):
+                with open(writer.events_file, 'r') as f:
+                    writer.next_sequence = sum(1 for line in f if line.strip())
+        except Exception as e:
+            logger.warning(f"Could not read event count for {run_id}: {e}")
+
+        return writer
+
     def is_enabled(self) -> bool:
         """
         Check if ledger is enabled (not disabled due to errors).

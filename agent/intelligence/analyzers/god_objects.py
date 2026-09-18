@@ -157,7 +157,7 @@ class GodObjectsAnalyzer(BaseAnalyzer):
             )
             
             self.patterns_matched.append(f"god_object:{class_name}:{method_count}_methods")
-            proposals.append(self._finalize_proposal(proposal))
+            proposals.append(self._finalize_proposal(proposal, repository_path))
         
         return proposals
     
@@ -169,21 +169,21 @@ class GodObjectsAnalyzer(BaseAnalyzer):
         god_objects = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
+                        self._record_lines(file_path, len(content.split('\n')))
                     
                     # Find classes and count methods
                     classes = self._extract_classes(file_path)

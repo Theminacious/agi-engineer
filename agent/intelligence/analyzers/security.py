@@ -68,7 +68,7 @@ class SecurityAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -87,7 +87,11 @@ class SecurityAnalyzer(BaseAnalyzer):
             proposal.severity = Severity.CRITICAL
             
             secret_count = len(found_secrets)
-            secret_types = set(s[1] for s in found_secrets)
+            # sorted(): the set is interpolated into problem_statement, which
+            # feeds proposal_id. Set iteration order varies with PYTHONHASHSEED,
+            # so on requests this alternated between "private_key, password" and
+            # "password, private_key" and the proposal_id changed with it.
+            secret_types = sorted(set(s[1] for s in found_secrets))
             
             proposal.problem_statement = (
                 f"Found {secret_count} hardcoded secrets ({', '.join(secret_types)}) "
@@ -324,22 +328,22 @@ class SecurityAnalyzer(BaseAnalyzer):
         secrets = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 # Skip binary files
                 if file.endswith(('.pyc', '.exe', '.dll', '.so')):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
+                            self._record_lines(file_path, line_num)
                             
                             for secret_type, pattern in self.SECRET_PATTERNS.items():
                                 if re.search(pattern, line, re.IGNORECASE):
@@ -357,21 +361,21 @@ class SecurityAnalyzer(BaseAnalyzer):
         issues = {k: [] for k in self.INSECURE_PATTERNS.keys()}
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith(('.py', '.js', '.ts', '.sql', '.yml', '.yaml')):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
+                        self._record_lines(file_path, len(content.split('\n')))
                         
                         for pattern_name, pattern in self.INSECURE_PATTERNS.items():
                             if re.search(pattern, content, re.IGNORECASE):

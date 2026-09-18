@@ -153,15 +153,32 @@ class IntelligenceProposal:
     patterns_matched: List[str] = field(default_factory=list)
     
     def __post_init__(self):
-        """Generate deterministic proposal_id if not set."""
-        if not self.proposal_id:
-            from agent.intelligence.deterministic_ids import generate_proposal_id
-            self.proposal_id = generate_proposal_id(
-                self.bug_class.value,
-                self.problem_statement,
-                [f.path for f in self.affected_files],
-                self.severity.value,
-            )
+        """Derive proposal_id from content unless the caller supplied one."""
+        self._proposal_id_is_derived = not self.proposal_id
+        if self._proposal_id_is_derived:
+            self.proposal_id = self._derive_proposal_id()
+
+    def _derive_proposal_id(self) -> str:
+        from agent.intelligence.deterministic_ids import generate_proposal_id
+        return generate_proposal_id(
+            self.bug_class.value,
+            self.problem_statement,
+            [f.path for f in self.affected_files],
+            self.severity.value,
+        )
+
+    def refresh_derived_proposal_id(self) -> str:
+        """
+        Recompute a derived proposal_id from the content as it stands now.
+
+        Analyzers construct `IntelligenceProposal()` with no arguments and then
+        assign bug_class/problem_statement/severity/affected_files, so
+        `__post_init__` hashed the dataclass defaults and every proposal in the
+        system received the same id. An explicit caller-supplied id is kept.
+        """
+        if getattr(self, "_proposal_id_is_derived", True):
+            self.proposal_id = self._derive_proposal_id()
+        return self.proposal_id
 
     def validate(self) -> List[str]:
         """
@@ -225,10 +242,42 @@ class IntelligenceProposal:
         }
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
+        """
+        Convert to dictionary for JSON serialization.
+
+        This is the proposal's *content*: analysing the same code twice must
+        produce a byte-identical dict, because `proposal_id` is derived from
+        content and the ledger relies on replayability. Wall-clock readings are
+        therefore deliberately excluded here — they say when the run happened
+        and how long it took, not what was found, and including them made two
+        runs share one proposal_id while disagreeing on their payload.
+
+        Two such readings are excluded:
+
+        * `timestamp` — when the run happened.
+        * `analysis_duration_ms` — how long the scan took. Measured in
+          milliseconds, so it differs between runs of the *same* analysis on
+          the *same* code (observed: 14 vs 0), which reintroduced exactly the
+          divergence excluding `timestamp` was meant to remove.
+
+        Neither is lost. Both stay on the dataclass, and
+        `ledger_adapter.proposal_to_ledger_event` reads them straight off the
+        object into its `metadata` block, which is where run telemetry belongs;
+        `full_proposal` (this dict) is the replay payload beside it. The
+        timestamp is additionally emitted by the envelopes that record when a
+        run happened — `IntelligenceProposal.to_ledger_event` and
+        `ledger_adapter.proposal_to_ledger_event`. RunLedger stamps its own
+        write time for the summary events built by
+        `ledger_adapter.proposal_to_runledger_format`.
+
+        The remaining scan metrics (`files_scanned`, `lines_analyzed`,
+        `patterns_matched`) are functions of the code being analysed rather than
+        of the clock, so they stay: they are evidence for the finding. Their
+        determinism depends on scanners walking files in a fixed order, which
+        is why the scan helpers iterate `sorted(files)`.
+        """
         return {
             "proposal_id": self.proposal_id,
-            "timestamp": self.timestamp.isoformat(),
             "repository_url": self.repository_url,
             "branch": self.branch,
             "analyzer_name": self.analyzer_name,  # Phase 11.3: Ledger recording
@@ -251,7 +300,7 @@ class IntelligenceProposal:
             "conflicting_analysis_ids": self.conflicting_analysis_ids,
             "requires_human_decision": self.requires_human_decision,
             "decision_required_for": self.decision_required_for,
-            "analysis_duration_ms": self.analysis_duration_ms,
+            # `analysis_duration_ms` is intentionally absent — see docstring.
             "files_scanned": self.files_scanned,
             "lines_analyzed": self.lines_analyzed,
             "patterns_matched": self.patterns_matched,

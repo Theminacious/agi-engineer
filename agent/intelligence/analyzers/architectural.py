@@ -4,7 +4,7 @@ Architectural violations analyzer.
 Detects layer boundary breaches, circular dependencies, and architecture violations.
 """
 
-from typing import List, Set, Dict
+from typing import List, Set, Dict, Tuple
 import os
 from agent.intelligence.analyzer import BaseAnalyzer
 from agent.intelligence.proposal import (
@@ -49,7 +49,7 @@ class ArchitecturalAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -286,22 +286,22 @@ class ArchitecturalAnalyzer(BaseAnalyzer):
         # Scan Python files for import statements
         for root, dirs, files in os.walk(repository_path):
             # Skip common non-code directories
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'node_modules', 'venv', '.venv',
                 'build', 'dist', '.tox', '.pytest_cache'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
+                        self._record_lines(file_path, len(content.split('\n')))
                     
                     # Simple import detection (not exhaustive)
                     module_name = self._get_module_name(file_path, repository_path)
@@ -325,22 +325,25 @@ class ArchitecturalAnalyzer(BaseAnalyzer):
             visited.add(node)
             rec_stack.add(node)
             path.append(node)
-            
-            for neighbor in graph.get(node, set()):
+
+            # sorted(): set and dict iteration order reach the payload through
+            # the cycle path, which is interpolated into problem_statement and
+            # so into proposal_id. Set order varies with PYTHONHASHSEED.
+            for neighbor in sorted(graph.get(node, set())):
                 if neighbor not in visited:
                     dfs(neighbor)
                 elif neighbor in rec_stack:
                     # Found a cycle
                     cycle_start = path.index(neighbor)
                     cycles.append(path[cycle_start:])
-            
+
             path.pop()
             rec_stack.remove(node)
-        
-        for node in graph:
+
+        for node in sorted(graph):
             if node not in visited:
                 dfs(node)
-        
+
         return cycles
     
     def _extract_imports(self, file_path: str) -> Set[str]:
@@ -379,9 +382,14 @@ class ArchitecturalAnalyzer(BaseAnalyzer):
         """
         Find violations of layer boundaries.
         Uses directory structure heuristics.
+
+        One entry per (from_layer, to_layer) pair, with the distinct files
+        involved. Appending an entry per matching line emitted byte-identical
+        proposals: `from app.api.handlers import handle` matches both 'api' and
+        'handlers', and a second import of the same layer matches again, so a
+        single violation was reported three times and two of the proposals were
+        indistinguishable — including their content-derived proposal_id.
         """
-        violations = []
-        
         # Define expected layers (heuristic-based)
         layers = {
             'api': 0,
@@ -398,41 +406,50 @@ class ArchitecturalAnalyzer(BaseAnalyzer):
             'database': 2,
             'data': 2,
         }
-        
+
+        grouped: Dict[Tuple[str, str], Set[str]] = {}
+
         # Simple check: look for imports from lower layers to upper layers
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
-            
+            }])
+
+            # Matched against the repository-relative directory, not the
+            # absolute one: with `layer_name in root` the layer of a file
+            # depended on the checkout location, so a repository cloned under
+            # e.g. /home/rapid/ had every directory classified as the 'api'
+            # layer and produced findings that another machine would not.
+            relative_root = os.path.relpath(root, repository_path)
+
             current_layer = None
             for layer_name, layer_level in layers.items():
-                if layer_name in root:
+                if layer_name in relative_root:
                     current_layer = (layer_name, layer_level)
                     break
-            
+
             if not current_layer:
                 continue
-            
-            for file in files:
+
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
-                
+
                 file_path = os.path.join(root, file)
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line in f:
                             for other_layer, other_level in layers.items():
                                 # Check if lower layer imports higher layer
-                                if (current_layer[1] > other_level and 
-                                    other_layer in line and
-                                    ('import' in line or 'from' in line)):
-                                    violations.append({
-                                        'from': current_layer[0],
-                                        'to': other_layer,
-                                        'files': [file_path],
-                                    })
+                                if (current_layer[1] > other_level and
+                                        other_layer in line and
+                                        ('import' in line or 'from' in line)):
+                                    key = (current_layer[0], other_layer)
+                                    grouped.setdefault(key, set()).add(file_path)
                 except Exception:
                     pass
-        
-        return violations
+
+        return [
+            {'from': from_layer, 'to': to_layer, 'files': sorted(paths)}
+            for (from_layer, to_layer), paths in sorted(grouped.items())
+        ]

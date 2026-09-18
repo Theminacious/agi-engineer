@@ -93,7 +93,7 @@ class CrashRiskAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -470,9 +470,12 @@ class CrashRiskAnalyzer(BaseAnalyzer):
         
         for root, dirs, files in os.walk(repository_path):
             # Skip common non-code directories
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -482,26 +485,30 @@ class CrashRiskAnalyzer(BaseAnalyzer):
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
-                        self.files_scanned += 1
-                        self.lines_analyzed += len(lines)
+                        self._record_scanned_file(file_path)
+                        self._record_lines(file_path, len(lines))
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for unsafe dict access
                             if re.search(self.CRASH_PATTERNS['unsafe_dict_access'], line):
-                                # Verify no .get() nearby and not in assignment
-                                if '.get(' not in line and '=' not in line.split('[')[0]:
-                                    issues.append((rel_path, line_num, 'unsafe_dict_access', line.strip()))
+                                # Subscript *writes* (d['k'] = v) cannot raise
+                                # KeyError and are already excluded by the
+                                # pattern's own `(?!\s*=)` lookahead, so only
+                                # a nearby .get() rules a read out here.
+                                if '.get(' not in line:
+                                    issues.append((rel_path, line_num, 'unsafe_dict_access', raw_line.strip()))
                             
                             # Check for unsafe list access
                             if re.search(self.CRASH_PATTERNS['unsafe_list_access'], line):
                                 # Basic heuristic: if no bounds check nearby
                                 if 'len(' not in line and 'if ' not in line:
-                                    issues.append((rel_path, line_num, 'unsafe_list_access', line.strip()))
+                                    issues.append((rel_path, line_num, 'unsafe_list_access', raw_line.strip()))
                             
                             # Check for chained method calls (potential None)
                             if re.search(self.CRASH_PATTERNS['unsafe_optional_access'], line):
                                 if 'if ' not in line and 'try:' not in line:
-                                    issues.append((rel_path, line_num, 'unsafe_optional_access', line.strip()))
+                                    issues.append((rel_path, line_num, 'unsafe_optional_access', raw_line.strip()))
                 
                 except Exception:
                     # Skip files that can't be read
@@ -514,9 +521,12 @@ class CrashRiskAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -527,7 +537,8 @@ class CrashRiskAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for unguarded operations
                             for pattern_name, pattern in [
                                 ('file_open', self.CRASH_PATTERNS['unguarded_file_open']),
@@ -538,7 +549,7 @@ class CrashRiskAnalyzer(BaseAnalyzer):
                                 if re.search(pattern, line):
                                     # Check if not in try block (simple heuristic)
                                     if pattern_name == 'file_open' or 'try:' not in ''.join(lines[max(0, line_num-3):line_num]):
-                                        issues.append((rel_path, line_num, pattern_name, line.strip()))
+                                        issues.append((rel_path, line_num, pattern_name, raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -550,9 +561,12 @@ class CrashRiskAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 

@@ -130,7 +130,14 @@ class PRAnalysis(Base):
     
     # Governance link (for UI)
     report_url = Column(String(500), nullable=True)
-    
+
+    change_risk_level = Column(String(20), nullable=True)
+    change_risk_recommendation = Column(String(50), nullable=True)
+    change_risk_base_revision = Column(String(255), nullable=True)
+    change_risk_hash = Column(String(64), nullable=True)
+    change_risk_report = Column(JSON, nullable=True)
+    change_risk_error = Column(Text, nullable=True)
+
     # Analysis timing
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)

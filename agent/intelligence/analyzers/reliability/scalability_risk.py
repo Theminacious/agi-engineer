@@ -34,29 +34,56 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
         return BugClass.SCALABILITY_RISKS
     
     # Patterns for scalability risks
+    #
+    # Unused: no method reads this dict. The live detectors are the _scan_for_*
+    # methods below, which carry their own patterns. Kept rather than deleted
+    # because 'query_in_loop' and friends document the intended catalogue, but it
+    # is not the detection logic and editing it changes nothing.
     SCALABILITY_PATTERNS = {
         # N+1 queries (more sophisticated than performance analyzer)
         'query_in_loop': r'for\s+\w+\s+in\s+.*:.*(?:\.query|\.filter|\.get|select|SELECT)',
         'orm_lazy_load': r'for\s+\w+\s+in\s+.*:\s*\w+\.\w+',  # Lazy relationship access
-        
+
         # Nested loops on collections
         'nested_loops': r'for\s+\w+\s+in\s+.*:\s*for\s+\w+\s+in',
         'triple_nested': r'for\s+\w+.*:\s*for\s+\w+.*:\s*for\s+\w+',
-        
+
         # Heavy computation in request path
         'complex_computation': r'(?:def|async def)\s+\w+.*request.*:.*(?:sum|sort|sorted|map|filter)',
         'file_processing_sync': r'(?:def|async def).*:.*(?:csv\.reader|json\.load|xml\.parse)',
-        
+
         # Unbounded queries
         'no_limit_query': r'\.(?:query|filter)\([^)]*\)(?!.*limit\(|.*\[:)\.all\(\)',
         'select_all': r'SELECT.*FROM.*(?!LIMIT|TOP)',
-        
+
         # Missing pagination
         'list_endpoint_no_page': r'@app\.route\([\'"][^\'"]*list[^\'"]*[\'"]\)',  # List endpoint pattern
-        
+
         # In-memory sorting of large data
         'sort_large_data': r'sorted\(.*\.all\(\)',
     }
+
+    # An actual loop header, so a line that merely contains 'for ' and ' in '
+    # somewhere does not open a scan window.
+    _LOOP_HEADER = re.compile(r'^\s*(?:async\s+)?for\s+.+?\s+in\s+.+:')
+
+    # A per-iteration database call. The scan used to accept the bare substrings
+    # '.get(' and 'select', so `config.get(key)` (a dict lookup),
+    # `os.environ.get(name)` (an env read) and a variable named `selected` were
+    # all reported as N+1 queries: on a four-case fixture three of the four
+    # findings were false positives. Requiring an ORM-ish receiver mirrors
+    # EnhancedPerformanceAnalyzer._scan_for_n_plus_one, which reported only the
+    # real one.
+    _QUERY_CALL = re.compile(
+        r'\.query\b'
+        r'|\.filter\(|\.filter_by\('
+        r'|\.objects\.(?:get|filter|all)\('
+        r'|\b(?:session|db|conn|cursor)\.(?:get|execute|query)\('
+    )
+
+    # Raw SQL needs both keywords on one line; 'select' alone is a English word
+    # and a common variable name.
+    _RAW_SQL = re.compile(r'\bselect\b.+\bfrom\b', re.IGNORECASE)
     
     def analyze(
         self,
@@ -95,7 +122,7 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -614,34 +641,40 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
     def _scan_for_nplus1(self, repository_path: str) -> List[Tuple[str, int, str]]:
         """Scan for N+1 query patterns."""
         issues = []
-        
+
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
-            
-            for file in files:
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
+
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
-                
+
                 file_path = os.path.join(root, file)
                 rel_path = os.path.relpath(file_path, repository_path)
-                
+
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
-                        self.files_scanned += 1
-                        self.lines_analyzed += len(lines)
-                        
-                        for line_num, line in enumerate(lines, 1):
-                            # Check for query/DB operations in loops
-                            if 'for ' in line and ' in ' in line:
-                                # Check next few lines for query operations
-                                context = ''.join(lines[line_num:min(line_num+5, len(lines))])
-                                if any(pattern in context for pattern in ['.query', '.filter', '.get(', 'SELECT', 'select']):
-                                    issues.append((rel_path, line_num, line.strip()))
-                
+                        self._record_scanned_file(file_path)
+                        self._record_lines(file_path, len(lines))
+
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
+                            if not self._LOOP_HEADER.match(line):
+                                continue
+                            # The following few lines, i.e. the loop body:
+                            # line_num is 1-based, so lines[line_num] is the
+                            # line after this one.
+                            context = ''.join(lines[line_num:min(line_num + 5, len(lines))])
+                            if self._QUERY_CALL.search(context) or self._RAW_SQL.search(context):
+                                issues.append((rel_path, line_num, raw_line.strip()))
+
                 except Exception:
                     continue
-        
+
         return issues
     
     def _scan_for_nested_loops(self, repository_path: str) -> List[Tuple[str, int, int, str]]:
@@ -649,9 +682,12 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -662,20 +698,21 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Count nesting level
                             if 'for ' in line and ' in ' in line:
                                 indent = len(line) - len(line.lstrip())
                                 # Check if we're already in a for loop (simple heuristic)
                                 nesting_level = 1
                                 for prev_line_num in range(max(0, line_num - 10), line_num):
-                                    prev_line = lines[prev_line_num]
+                                    prev_line = self._strip_comment(lines[prev_line_num])
                                     prev_indent = len(prev_line) - len(prev_line.lstrip())
                                     if 'for ' in prev_line and prev_indent < indent:
                                         nesting_level += 1
                                 
                                 if nesting_level >= 2:
-                                    issues.append((rel_path, line_num, nesting_level, line.strip()))
+                                    issues.append((rel_path, line_num, nesting_level, raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -687,9 +724,12 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -700,18 +740,19 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for .all() without .limit()
                             if '.all()' in line:
                                 # Check previous lines for .limit()
                                 context = ''.join(lines[max(0, line_num-5):line_num])
                                 if '.limit(' not in context and 'LIMIT' not in context:
-                                    issues.append((rel_path, line_num, 'query_all', line.strip()))
+                                    issues.append((rel_path, line_num, 'query_all', raw_line.strip()))
                             
                             # Check for SELECT without LIMIT
                             if re.search(r'SELECT.*FROM', line, re.IGNORECASE):
                                 if 'LIMIT' not in line.upper():
-                                    issues.append((rel_path, line_num, 'select_no_limit', line.strip()))
+                                    issues.append((rel_path, line_num, 'select_no_limit', raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -723,9 +764,12 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -738,11 +782,13 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
                         lines = content.split('\n')
                         
                         # Find request handler functions (Flask/FastAPI patterns)
-                        for i, line in enumerate(lines):
+                        for i, raw_line in enumerate(lines):
+                            line = self._strip_comment(raw_line)
                             if '@app.route' in line or '@router.' in line or 'async def' in line:
                                 # Check next 30 lines for heavy operations
                                 for offset in range(1, min(30, len(lines) - i)):
-                                    check_line = lines[i + offset]
+                                    raw_check_line = lines[i + offset]
+                                    check_line = self._strip_comment(raw_check_line)
                                     line_num = i + offset + 1
                                     
                                     # End of function
@@ -751,11 +797,11 @@ class ScalabilityRiskAnalyzer(BaseAnalyzer):
                                     
                                     # Check for heavy operations
                                     if 'csv.reader' in check_line or 'csv.writer' in check_line:
-                                        issues.append((rel_path, line_num, 'csv_processing', check_line.strip()))
+                                        issues.append((rel_path, line_num, 'csv_processing', raw_check_line.strip()))
                                     elif 'json.load' in check_line or 'json.loads' in check_line:
-                                        issues.append((rel_path, line_num, 'json_processing', check_line.strip()))
+                                        issues.append((rel_path, line_num, 'json_processing', raw_check_line.strip()))
                                     elif 'sorted(' in check_line:
-                                        issues.append((rel_path, line_num, 'sorting', check_line.strip()))
+                                        issues.append((rel_path, line_num, 'sorting', raw_check_line.strip()))
                 
                 except Exception:
                     continue

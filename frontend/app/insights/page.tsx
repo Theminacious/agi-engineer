@@ -8,68 +8,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-
-interface ReliabilityScore {
-  reliability_score: number;
-  score_grade: string;
-  score_change_7d: number | null;
-  score_change_30d: number | null;
-  last_score_update_at: string | null;
-}
-
-interface RiskBreakdown {
-  critical_risks: number;
-  high_risks: number;
-  medium_risks: number;
-  low_risks: number;
-  total_risks: number;
-  risk_trend_7d: string | null;
-  risk_trend_30d: string | null;
-}
-
-interface RiskCategories {
-  crash_risks: number;
-  resource_leaks: number;
-  reliability_antipatterns: number;
-  scalability_risks: number;
-  edge_case_vulnerabilities: number;
-}
-
-interface FixMetrics {
-  total_fixes_proposed: number;
-  total_fixes_approved: number;
-  total_fixes_applied: number;
-  total_fixes_failed: number;
-  fix_adoption_rate: number;
-  fix_success_rate: number;
-}
-
-interface PRMetrics {
-  total_prs_analyzed: number;
-  prs_with_critical_risks: number;
-  prs_with_high_risks: number;
-  prs_with_no_risks: number;
-}
-
-interface RepoInsights {
-  repository_id: number;
-  repository_name: string;
-  score: ReliabilityScore;
-  risk_breakdown: RiskBreakdown;
-  risk_categories: RiskCategories;
-  fix_metrics: FixMetrics;
-  pr_metrics: PRMetrics;
-  last_analysis_at: string | null;
-  last_fix_applied_at: string | null;
-}
-
-interface TrendDataPoint {
-  date: string;
-  score: number;
-  critical_risks: number;
-  high_risks: number;
-  total_risks: number;
-}
+import {
+  fetchRepoInsights,
+  fetchRepoTrends,
+  riskTrendClassName,
+  scoreBackgroundColor,
+  scoreColor,
+  trendIndicator,
+  type RepoInsights,
+  type TrendDataPoint,
+} from '@/lib/insights';
 
 function InsightsPageContent() {
   const searchParams = useSearchParams();
@@ -82,25 +30,23 @@ function InsightsPageContent() {
   const [selectedPeriod, setSelectedPeriod] = useState<number>(30);
 
   useEffect(() => {
-    if (repoId) {
-      loadInsights();
-      loadTrends();
+    if (!repoId) {
+      // Nothing to fetch. Without clearing `loading` here it stays true for
+      // ever, the spinner below never resolves, and the "No repository
+      // selected" branch further down is unreachable.
+      setLoading(false);
+      return;
     }
+    loadInsights();
+    loadTrends();
   }, [repoId, selectedPeriod]);
 
   const loadInsights = async () => {
+    if (!repoId) return;
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await fetch(`/api/insights/repo/${repoId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to load insights');
-      }
-      
-      const data = await response.json();
-      setInsights(data);
+      setInsights(await fetchRepoInsights(repoId));
     } catch (err) {
       console.error('Error loading insights:', err);
       setError(err instanceof Error ? err.message : 'Failed to load insights');
@@ -110,67 +56,26 @@ function InsightsPageContent() {
   };
 
   const loadTrends = async () => {
+    if (!repoId) return;
     try {
-      const response = await fetch(`/api/insights/repo/${repoId}/trends?days=${selectedPeriod}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to load trends');
-      }
-      
-      const data = await response.json();
-      setTrends(data.data_points);
+      setTrends(await fetchRepoTrends(repoId, selectedPeriod));
     } catch (err) {
+      // Trends are supplementary; the score card is still worth showing without
+      // them, so this failure does not become a page-level error.
       console.error('Error loading trends:', err);
     }
   };
 
-  const getScoreColor = (score: number): string => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-blue-600';
-    if (score >= 70) return 'text-yellow-600';
-    if (score >= 60) return 'text-orange-600';
-    return 'text-red-600';
-  };
-
-  const getScoreBackgroundColor = (score: number): string => {
-    if (score >= 90) return 'bg-green-50 border-green-200';
-    if (score >= 80) return 'bg-blue-50 border-blue-200';
-    if (score >= 70) return 'bg-yellow-50 border-yellow-200';
-    if (score >= 60) return 'bg-orange-50 border-orange-200';
-    return 'bg-red-50 border-red-200';
-  };
-
   const getTrendIndicator = (change: number | null): JSX.Element => {
-    if (change === null) return <span className="text-gray-400">—</span>;
-    
-    if (change > 0) {
-      return (
-        <span className="text-green-600">
-          ↑ {change.toFixed(1)}
-        </span>
-      );
-    } else if (change < 0) {
-      return (
-        <span className="text-red-600">
-          ↓ {Math.abs(change).toFixed(1)}
-        </span>
-      );
-    } else {
-      return <span className="text-gray-600">— 0.0</span>;
-    }
+    const { label, className } = trendIndicator(change);
+    return <span className={className}>{label}</span>;
   };
 
   const getRiskTrendBadge = (trend: string | null): JSX.Element => {
     if (!trend) return <span className="text-gray-400">—</span>;
-    
-    const colors = {
-      'increasing': 'bg-red-100 text-red-700',
-      'stable': 'bg-blue-100 text-blue-700',
-      'decreasing': 'bg-green-100 text-green-700'
-    };
-    
+
     return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${colors[trend as keyof typeof colors]}`}>
+      <span className={`px-2 py-1 rounded text-xs font-medium ${riskTrendClassName(trend)}`}>
         {trend}
       </span>
     );
@@ -229,17 +134,17 @@ function InsightsPageContent() {
         </div>
 
         {/* Score Card */}
-        <div className={`rounded-lg border-2 p-8 mb-8 ${getScoreBackgroundColor(insights.score.reliability_score)}`}>
+        <div className={`rounded-lg border-2 p-8 mb-8 ${scoreBackgroundColor(insights.score.reliability_score)}`}>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-700 mb-2">
                 Reliability Score
               </h2>
               <div className="flex items-baseline gap-4">
-                <span className={`text-6xl font-bold ${getScoreColor(insights.score.reliability_score)}`}>
+                <span className={`text-6xl font-bold ${scoreColor(insights.score.reliability_score)}`}>
                   {insights.score.reliability_score.toFixed(1)}
                 </span>
-                <span className={`text-4xl font-bold ${getScoreColor(insights.score.reliability_score)}`}>
+                <span className={`text-4xl font-bold ${scoreColor(insights.score.reliability_score)}`}>
                   {insights.score.score_grade}
                 </span>
               </div>
@@ -494,7 +399,7 @@ function InsightsPageContent() {
                   <span className="text-gray-600">
                     {new Date(point.date).toLocaleDateString()}
                   </span>
-                  <span className={`font-semibold ${getScoreColor(point.score)}`}>
+                  <span className={`font-semibold ${scoreColor(point.score)}`}>
                     {point.score.toFixed(1)}
                   </span>
                   <span className="text-gray-600">

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from app.models.analysis_result import AnalysisResult, IssueCategory
+from app.services.cleanup import safe_rmtree
+from app.services.finding_context import build_finding_contexts, summarize_contexts
 import logging
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -18,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class V1AnalysisEngine:
+    CAPABILITY_IDS = ("ruff", "eslint", "finding_context")
+
     def __init__(self, groq_api_key: Optional[str] = None):
         self.groq_api_key = groq_api_key
         self.temp_dirs: List[str] = []
@@ -43,6 +47,11 @@ class V1AnalysisEngine:
 
             all_issues = ruff_results + eslint_results
 
+            contexts = build_finding_contexts(all_issues, repo_root=temp_dir)
+            for issue, context in zip(all_issues, contexts):
+                issue["file_path"] = context.file_path
+                issue["context"] = context.to_dict()
+
             return {
                 "status": "completed",
                 "repository": repo_url,
@@ -52,6 +61,7 @@ class V1AnalysisEngine:
                 "issues": all_issues,
                 "ruff_count": len(ruff_results),
                 "eslint_count": len(eslint_results),
+                "context_summary": summarize_contexts(contexts),
                 "analyzed_at": datetime.utcnow().isoformat(),
             }
 
@@ -65,8 +75,21 @@ class V1AnalysisEngine:
             }
 
         finally:
-            if temp_dir and Path(temp_dir).exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
+            self._cleanup_temp_dir(temp_dir)
+
+    def _cleanup_temp_dir(self, temp_dir: Optional[str]) -> None:
+        """Remove one temp dir and drop it from the tracking list.
+
+        Untracking matters: analyze_repository appends every clone to
+        self.temp_dirs, so without this the list grows for the lifetime of the
+        engine, holding a path string per analysis and making cleanup() retry
+        directories that are already gone.
+        """
+        if not temp_dir:
+            return
+        safe_rmtree(temp_dir, kind="v1_analysis")
+        if temp_dir in self.temp_dirs:
+            self.temp_dirs.remove(temp_dir)
 
     def _clone_repository(self, repo_url: str, target_dir: str, branch: str) -> None:
         cmd = ["git", "clone", "--depth=1", "--branch", branch, repo_url, target_dir]
@@ -96,6 +119,7 @@ class V1AnalysisEngine:
             return []
 
     def _run_eslint_analysis(self, repo_dir: str) -> List[Dict[str, Any]]:
+        config_path = Path(repo_dir) / ".eslintrc.json"
         try:
             # Create a temporary eslint config for the analysis
             eslint_config = {
@@ -112,8 +136,7 @@ class V1AnalysisEngine:
                     "@typescript-eslint/no-explicit-any": "warn",
                 }
             }
-            
-            config_path = Path(repo_dir) / ".eslintrc.json"
+
             with open(config_path, "w") as f:
                 json.dump(eslint_config, f)
 
@@ -131,9 +154,6 @@ class V1AnalysisEngine:
                 cwd=repo_dir,
             )
 
-            # Cleanup config
-            config_path.unlink(missing_ok=True)
-
             if result.returncode in [0, 1]:
                 try:
                     issues = json.loads(result.stdout) if result.stdout else []
@@ -149,6 +169,16 @@ class V1AnalysisEngine:
         except FileNotFoundError:
             logger.warning("ESLint not installed")
             return []
+
+        finally:
+            # In a finally block because the config is written into the repo
+            # under analysis: on timeout or a missing eslint binary the old
+            # inline unlink was skipped, leaving .eslintrc.json behind to be
+            # picked up by whatever ran there next.
+            try:
+                config_path.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning(f"Could not remove temporary eslint config: {exc}")
 
     def _normalize_ruff_issues(self, issues: List[Dict]) -> List[Dict[str, Any]]:
         normalized = []
@@ -201,7 +231,7 @@ class V1AnalysisEngine:
                 return IssueCategory.SUGGESTION.value
 
     def cleanup(self) -> None:
-        for temp_dir in self.temp_dirs:
-            if Path(temp_dir).exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
+        """Remove any temp dirs still tracked (e.g. after an abandoned run)."""
+        for temp_dir in list(self.temp_dirs):
+            safe_rmtree(temp_dir, kind="v1_analysis")
         self.temp_dirs.clear()

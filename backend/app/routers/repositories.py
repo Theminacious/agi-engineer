@@ -3,7 +3,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-import requests
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -11,8 +10,8 @@ from datetime import datetime
 from app.db import SessionLocal, get_db
 from app.models.analysis_run import AnalysisRun, RunStatus
 from app.models.analysis_result import AnalysisResult, IssueCategory
-from app.models.repository import Repository
 from app.models.installation import Installation
+from app.services.repository_registry import register_repository_from_url
 from app.tasks.analysis_tasks import clone_repository, run_agi_engineer_analysis
 from app.security import verify_token
 from app.tasks import run_code_analysis
@@ -138,36 +137,15 @@ async def import_repository(
     if not installation:
         raise HTTPException(status_code=404, detail="Installation not found")
 
-    # Check if repository already exists
-    existing = db.query(Repository).filter(Repository.repo_full_name == full_name).first()
-    if existing:
-        repo = existing
-    else:
-        # Try to fetch repo info from GitHub to get numeric id
-        github_repo_id = None
-        try:
-            headers = {"Authorization": f"Bearer {installation.access_token}", "Accept": "application/vnd.github+json"}
-            resp = requests.get(f"https://api.github.com/repos/{full_name}", headers=headers, timeout=10)
-            if resp.status_code == 200:
-                github_repo_id = resp.json().get("id")
-        except Exception:
-            github_repo_id = None
-
-        # Fallback pseudo id if GitHub call fails (demo mode)
-        if github_repo_id is None:
-            github_repo_id = abs(hash(full_name)) % (2**31)
-
-        repo_name = full_name.split("/")[-1]
-        repo = Repository(
-            installation_id=installation.id,
-            repo_name=repo_name,
-            repo_full_name=full_name,
-            github_repo_id=github_repo_id,
-            is_enabled=True,
-        )
-        db.add(repo)
-        db.commit()
-        db.refresh(repo)
+    repo, _ = register_repository_from_url(
+        db,
+        repo_full_name=full_name,
+        repo_name=full_name.split("/")[-1],
+        installation_id=installation.id,
+        access_token=installation.access_token,
+    )
+    db.commit()
+    db.refresh(repo)
 
     # Create an analysis run
     run = AnalysisRun(
