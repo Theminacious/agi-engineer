@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { apiUrl } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 import { Button, Badge } from '@/components/ui'
 import { Copy, Check, Loader } from 'lucide-react'
@@ -25,7 +26,7 @@ export function CodeFixCard({ result_id, originalCode, issue }: CodeFixProps) {
   const generateFix = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/fixes/generate/${result_id}?provider=${provider}`, {
+      const response = await fetch(apiUrl(`/api/fixes/generate/${result_id}?provider=${provider}`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
@@ -39,7 +40,7 @@ export function CodeFixCard({ result_id, originalCode, issue }: CodeFixProps) {
         let attempts = 0
         const pollInterval = setInterval(async () => {
           attempts++
-          const checkResponse = await fetch(`/api/fixes/${result_id}`, {
+          const checkResponse = await fetch(apiUrl(`/api/fixes/${result_id}`), {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
             },

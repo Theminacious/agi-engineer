@@ -46,6 +46,7 @@ class GitHubService:
         self.client_secret = os.getenv("GITHUB_CLIENT_SECRET")
         
         self.api_base_url = "https://api.github.com"
+        self.git_remote_base_url = "https://github.com"
     
     def verify_webhook_signature(
         self,
@@ -246,7 +247,48 @@ class GitHubService:
         except Exception as e:
             logger.error(f"Error posting PR comment: {e}")
             return None
-    
+
+    def update_pr_comment(
+        self,
+        installation_id: int,
+        repo_full_name: str,
+        comment_id: int,
+        comment_body: str
+    ) -> bool:
+        """Rewrite an existing PR comment in place.
+
+        Lets a re-run of the same analysis replace its own comment instead of
+        adding another one.
+        """
+        token = self.get_installation_token(installation_id)
+        if not token:
+            logger.error(f"Failed to get token for installation {installation_id}")
+            return False
+
+        try:
+            response = self.client.patch(
+                f"{self.api_base_url}/repos/{repo_full_name}/issues/comments/{comment_id}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28"
+                },
+                json={"body": comment_body}
+            )
+
+            if response.status_code == 200:
+                logger.info(f"Updated comment {comment_id} on {repo_full_name}")
+                return True
+
+            logger.error(
+                f"Failed to update comment {comment_id}: {response.status_code}"
+            )
+            return False
+
+        except Exception as e:
+            logger.error(f"Error updating PR comment {comment_id}: {e}")
+            return False
+
     def create_check_run(
         self,
         installation_id: int,
@@ -419,45 +461,75 @@ class GitHubService:
         installation_id: int,
         repo_full_name: str,
         ref: str,
-        dest_path: str
+        dest_path: str,
+        extra_refs: Optional[List[str]] = None,
     ) -> bool:
-        """Clone a GitHub repository at a specific ref.
-        
-        Args:
-            installation_id: GitHub App installation ID
-            repo_full_name: Repository (owner/repo format)
-            ref: Git ref (branch, tag, or commit SHA)
-            dest_path: Local destination path
-        
-        Returns:
-            True if successful, False otherwise
+        """Clone a repository and check out `ref`, fetching `extra_refs` too.
+
+        init + fetch rather than `git clone`: `--branch` rejects a commit SHA,
+        and `--depth=1` would leave no history for `git diff base..head`.
         """
         token = self.get_installation_token(installation_id)
         if not token:
             logger.error(f"Failed to get token for installation {installation_id}")
             return False
-        
-        # Use git clone with authentication
-        clone_url = f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
-        
+
+        base = self.git_remote_base_url
+        if base.startswith("http"):
+            scheme, _, host = base.partition("://")
+            clone_url = f"{scheme}://x-access-token:{token}@{host}/{repo_full_name}.git"
+        else:
+            clone_url = os.path.join(base, repo_full_name)
+
         try:
             import subprocess
-            
-            # Clone repository
-            result = subprocess.run(
-                ["git", "clone", "--depth=1", "--branch", ref, clone_url, dest_path],
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
-            
-            if result.returncode == 0:
-                logger.info(f"Cloned {repo_full_name}@{ref} to {dest_path}")
-                return True
-            else:
-                logger.error(f"Failed to clone repository: {result.stderr}")
+
+            def run(args: List[str], required: bool) -> bool:
+                result = subprocess.run(
+                    args, capture_output=True, text=True, timeout=300
+                )
+                if result.returncode == 0:
+                    return True
+                message = f"git {args[3] if len(args) > 3 else ''} failed (exit {result.returncode})"
+                if required:
+                    logger.error(f"{message} for {repo_full_name}")
+                else:
+                    logger.warning(f"{message} for {repo_full_name}")
                 return False
-                
+
+            os.makedirs(dest_path, exist_ok=True)
+            if not run(["git", "init", "--quiet", dest_path], required=True):
+                return False
+            if not run(
+                ["git", "-C", dest_path, "remote", "add", "origin", clone_url],
+                required=True,
+            ):
+                return False
+
+            for extra in extra_refs or []:
+                if not extra or extra == ref:
+                    continue
+                if run(["git", "-C", dest_path, "fetch", "--no-tags", "origin", extra], required=False):
+                    run(
+                        ["git", "-C", dest_path, "update-ref",
+                         f"refs/remotes/origin/{extra}", "FETCH_HEAD"],
+                        required=False,
+                    )
+                else:
+                    logger.warning(f"Could not fetch extra ref '{extra}' for {repo_full_name}")
+
+            if not run(["git", "-C", dest_path, "fetch", "--no-tags", "origin", ref], required=True):
+                return False
+
+            if not run(
+                ["git", "-C", dest_path, "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+                required=True,
+            ):
+                return False
+
+            logger.info(f"Cloned {repo_full_name}@{ref} to {dest_path}")
+            return True
+
         except subprocess.TimeoutExpired:
             logger.error(f"Repository clone timed out: {repo_full_name}")
             return False

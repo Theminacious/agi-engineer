@@ -200,6 +200,7 @@ class ApprovalRequest(BaseModel):
     """Request model for fix approval."""
     plan_tier: str = "developer"  # Plan tier (developer/team/enterprise)
     approved_by: str = "user@example.com"  # User identifier
+    acknowledge_change_risk: bool = False  # Required when change risk is CRITICAL
 
 
 class RejectionRequest(BaseModel):
@@ -259,15 +260,18 @@ async def approve_fix(
         fix_id=fix_id,
         plan_context=plan_context,
         approved_by=request.approved_by,
-        ledger_writer=None  # TODO: Integrate with RunLedgerWriter
+        ledger_writer=None,
+        acknowledge_change_risk=request.acknowledge_change_risk,
     )
-    
+
     if not result["success"]:
         status_code = 400
         if result.get("error") == "plan_restriction":
             status_code = 403
         elif result.get("error") == "not_found":
             status_code = 404
+        elif result.get("error") == "change_risk_acknowledgement_required":
+            status_code = 409
         raise HTTPException(status_code=status_code, detail=result["message"])
     
     return result

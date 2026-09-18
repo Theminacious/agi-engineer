@@ -97,7 +97,7 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -550,9 +550,12 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -562,15 +565,16 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
-                        self.files_scanned += 1
-                        self.lines_analyzed += len(lines)
+                        self._record_scanned_file(file_path)
+                        self._record_lines(file_path, len(lines))
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for division by variable
                             if re.search(r'/\s*[a-zA-Z_]\w*', line):
                                 # Skip if zero check in same line
                                 if '!= 0' not in line and '> 0' not in line and 'if ' not in line:
-                                    issues.append((rel_path, line_num, line.strip()))
+                                    issues.append((rel_path, line_num, raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -582,9 +586,12 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -595,16 +602,17 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for float equality
                             if 'float' in line and '==' in line:
                                 if 'isclose' not in line:
-                                    issues.append((rel_path, line_num, line.strip()))
+                                    issues.append((rel_path, line_num, raw_line.strip()))
                             
                             # Check for decimal literal comparison
                             if re.search(r'==\s*\d+\.\d+', line):
                                 if 'isclose' not in line:
-                                    issues.append((rel_path, line_num, line.strip()))
+                                    issues.append((rel_path, line_num, raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -616,9 +624,12 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -629,16 +640,17 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for datetime.now() without timezone
                             if 'datetime.now()' in line:
                                 if 'timezone' not in line and 'tz=' not in line:
-                                    issues.append((rel_path, line_num, 'naive_now', line.strip()))
+                                    issues.append((rel_path, line_num, 'naive_now', raw_line.strip()))
                             
                             # Check for datetime() constructor without tzinfo
                             if 'datetime.datetime(' in line or 'datetime(' in line:
                                 if 'tzinfo' not in line and 'timezone' not in line:
-                                    issues.append((rel_path, line_num, 'naive_constructor', line.strip()))
+                                    issues.append((rel_path, line_num, 'naive_constructor', raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -650,9 +662,12 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -663,19 +678,20 @@ class EdgeCaseLogicAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for hardcoded indexes
                             if re.search(r'\[\d+\]', line):
                                 # Skip if length check nearby
                                 context = ''.join(lines[max(0, line_num-2):line_num])
                                 if 'len(' not in context and 'if ' not in context:
-                                    issues.append((rel_path, line_num, 'hardcoded_index', line.strip()))
+                                    issues.append((rel_path, line_num, 'hardcoded_index', raw_line.strip()))
                             
                             # Check for negative index
                             if re.search(r'\[-\d+\]', line):
                                 context = ''.join(lines[max(0, line_num-2):line_num])
                                 if 'len(' not in context and 'if ' not in context:
-                                    issues.append((rel_path, line_num, 'negative_index', line.strip()))
+                                    issues.append((rel_path, line_num, 'negative_index', raw_line.strip()))
                 
                 except Exception:
                     continue

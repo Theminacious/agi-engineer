@@ -74,7 +74,7 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -586,7 +586,12 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
                     f"Large critical section means long waits. "
                     f"Under load, threads pile up waiting for lock, reducing throughput."
                 )
-                
+                proposal.root_cause_hypothesis = (
+                    f"The lock was placed around a whole block rather than around the "
+                    f"shared-state access it protects, so unrelated work was pulled "
+                    f"inside the critical section as the method grew."
+                )
+
             elif risk['type'] == 'nested_locks':
                 proposal.problem_statement = (
                     f"Nested locks detected in {risk['location']}: "
@@ -598,7 +603,11 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
                     f"Thread B acquires lock 2, tries for lock 1. "
                     f"Deadlock - both threads wait forever. System hangs."
                 )
-            
+                proposal.root_cause_hypothesis = (
+                    f"Two independently locked components were composed without a "
+                    f"documented lock ordering, so each call site picks its own order."
+                )
+
             else:  # lock ordering
                 proposal.problem_statement = (
                     f"Lock ordering violation in {risk['location']}: "
@@ -609,6 +618,10 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
                     f"If locks are always acquired in same order (lock 1, then lock 2), "
                     f"no deadlock possible. But if this code acquires in reverse order, "
                     f"deadlock is possible."
+                )
+                proposal.root_cause_hypothesis = (
+                    f"No global lock hierarchy is defined or enforced, so acquisition "
+                    f"order is decided locally and drifts between call sites."
                 )
             
             proposal.affected_files.append(
@@ -686,19 +699,19 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
         ]
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
             
             for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
+                        self._record_lines(file_path, len(content.split('\n')))
                         
                         for pattern, dtype in patterns:
                             for match in re.finditer(pattern, content, re.MULTILINE):
@@ -722,7 +735,7 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
         ]
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
             
             for file in sorted(files):
                 if not file.endswith('.py'):
@@ -763,7 +776,7 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
         )
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
             
             for file in sorted(files):
                 if not file.endswith('.py'):
@@ -807,7 +820,7 @@ class EnhancedConcurrencyAnalyzer(BaseAnalyzer):
         lock_pattern = re.compile(r'(lock|Lock|mutex)\.acquire|with\s+\w+:')
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
             
             for file in sorted(files):
                 if not file.endswith('.py'):

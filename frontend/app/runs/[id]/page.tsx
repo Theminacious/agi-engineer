@@ -82,6 +82,26 @@ export default function RunDetailPage() {
 
   const fixedCount = data?.results.filter(r => r.is_fixed).length || 0
 
+  const executedAnalyzers = useMemo(() => data?.executed_analyzers ?? [], [data])
+
+  const relevanceCounts = useMemo(() => {
+    const results = data?.results ?? []
+    const summary = data?.relevance_summary
+    if (summary) {
+      const classified = results.length - summary.unclassified_count
+      return {
+        actionable: summary.actionable_count,
+        informational: summary.informational_count,
+        classified,
+      }
+    }
+    return {
+      actionable: results.filter(r => r.relevance === 'actionable').length,
+      informational: results.filter(r => r.relevance === 'informational').length,
+      classified: results.filter(r => r.relevance != null).length,
+    }
+  }, [data])
+
   const formatDuration = (start?: string | null, end?: string | null) => {
     if (!start || !end) return '—'
     const startMs = new Date(start).getTime()
@@ -201,21 +221,9 @@ export default function RunDetailPage() {
         )}
 
         {/* Execution Coverage */}
-        <ExecutionCoverage 
+        <ExecutionCoverage
               plan={plan}
-              executedAnalyzers={[
-                'architectural',
-                'abstraction',
-                'api_contracts',
-                'god_objects',
-                'performance',
-                'concurrency',
-                'security',
-                'test_coverage',
-                'broken_invariants',
-                'configuration',
-                'dependencies'
-              ]}
+              executedAnalyzers={executedAnalyzers}
               skippedAnalyzers={[]}
             />
 
@@ -273,18 +281,32 @@ export default function RunDetailPage() {
                 <div className="font-mono text-sm text-foreground">{data!.total_results}</div>
               </div>
               <div>
-                <div className="text-muted-foreground mb-1">Fixed</div>
-                <div className="font-mono text-sm text-foreground">{data!.results.filter(r => r.is_fixed).length}</div>
+                <div className="text-muted-foreground mb-1">Actionable</div>
+                <div className="font-mono text-sm text-foreground">
+                  {relevanceCounts.actionable}
+                  <span className="text-muted-foreground"> / {data!.total_results}</span>
+                </div>
               </div>
             </div>
-            
+
             <div className="mt-4 pt-4 border-t border-border space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Success Rate</span>
+                <span className="text-muted-foreground">Fix Rate (of findings)</span>
                 <span className="font-mono text-foreground">
-                  {data!.results.length > 0 ? ((data!.results.filter(r => r.is_fixed).length / data!.results.length * 100).toFixed(0)) : 0}%
+                  {data!.results.length > 0
+                    ? (data!.results.filter(r => r.is_fixed).length / data!.results.length * 100).toFixed(0)
+                    : 0}%
+                  <span className="text-muted-foreground ml-1">
+                    ({data!.results.filter(r => r.is_fixed).length} fixed)
+                  </span>
                 </span>
               </div>
+              {relevanceCounts.classified > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Informational (context-explained)</span>
+                  <span className="font-mono text-foreground">{relevanceCounts.informational}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Created</span>
                 <span className="text-foreground">{parseDateUtc(data!.created_at)?.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) ?? '—'}</span>
@@ -325,7 +347,9 @@ export default function RunDetailPage() {
                 <TableHead>Line</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Relevance</TableHead>
+                <TableHead>File type</TableHead>
+                <TableHead>Confidence</TableHead>
                 <TableHead>Message</TableHead>
                 <TableHead>Fixed</TableHead>
               </TableRow>
@@ -333,7 +357,7 @@ export default function RunDetailPage() {
             <TableBody>
               {data!.results.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
+                  <TableCell colSpan={9} className="h-32 text-center">
                     <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-green-400 opacity-40" />
                     <p className="text-sm text-muted-foreground">No issues found</p>
                     <p className="text-xs text-muted-foreground mt-1">This codebase looks great!</p>
@@ -346,8 +370,33 @@ export default function RunDetailPage() {
                     <TableCell className="font-mono text-sm text-muted-foreground">{r.line_number}</TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">{r.code}</TableCell>
                     <TableCell className="text-sm">{r.name}</TableCell>
-                    <TableCell><Badge variant="secondary" className="capitalize">{r.category}</Badge></TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-lg">{r.message}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={r.relevance === 'actionable' ? 'default' : 'secondary'}
+                        className="capitalize"
+                        title={r.context?.relevance_reasons?.join('; ') || r.category}
+                      >
+                        {r.relevance ?? r.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      <span title={r.context?.classification_reasons?.join('; ') || undefined}>
+                        {r.file_class ? r.file_class.replace(/_/g, ' ') : '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      <span title={r.context?.confidence_reasons?.join('; ') || undefined}>
+                        {r.confidence != null ? `${r.confidence}%` : '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-lg">
+                      {r.message}
+                      {r.context && r.context.correlated_count > 1 && (
+                        <span className="ml-2 text-xs text-muted-foreground/70">
+                          +{r.context.correlated_count - 1} more {r.code} in this file
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {r.is_fixed ? (
                         <Badge variant="default">Fixed</Badge>

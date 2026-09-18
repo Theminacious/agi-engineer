@@ -359,13 +359,66 @@ class TestConfidenceDeterminism:
             f"Confidence varied: {set(confidences)}"
     
     def test_severity_adjustment_deterministic(self):
-        """Test: Severity adjustment is deterministic."""
+        """Test: Severity adjustment is deterministic, and matches its contract.
+
+        This previously asserted only `adjust_severity("HIGH", 50) == "MEDIUM"`,
+        with the message "Severity adjustment not deterministic". The
+        implementation returns "HIGH", and it is the expectation that was wrong,
+        not the implementation:
+
+        * `RiskBasedSeverityAdjuster` defines three confidence bands. Below 40
+          every severity drops one level. From 40 to 59 only CRITICAL drops.
+          At 60 and above nothing changes. If the middle band also dropped
+          every severity one level it would be *indistinguishable* from the
+          band below 40, leaving a dead branch — the split is only meaningful
+          because the middle band is a partial reduction.
+        * PHASE_12_SUMMARY.md documents the one worked example for that band,
+          "Confidence: 45% ... Adjusted: CRITICAL -> HIGH", which is what the
+          code does.
+
+        So HIGH at confidence 50 is intentionally left at HIGH. The old
+        assertion also never tested determinism, only one hardcoded value, so
+        the property in the test's name is now checked directly: the full input
+        grid is evaluated repeatedly and must not vary.
+        """
         from agent.intelligence.confidence_calibrator import RiskBasedSeverityAdjuster
-        
-        # Same input should always give same output
-        for _ in range(10):
-            result = RiskBasedSeverityAdjuster.adjust_severity("HIGH", 50)
-            assert result == "MEDIUM", "Severity adjustment not deterministic"
+
+        adjust = RiskBasedSeverityAdjuster.adjust_severity
+        severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+        confidences = [0, 25, 39, 40, 45, 50, 59, 60, 75, 100]
+
+        # 1. Determinism: the whole grid, evaluated 10 times, must not vary.
+        runs = [
+            {(s, c): adjust(s, c) for s in severities for c in confidences}
+            for _ in range(10)
+        ]
+        assert all(r == runs[0] for r in runs), "Severity adjustment not deterministic"
+
+        # 2. The documented band contract, pinned explicitly.
+        for c in (0, 25, 39):        # low confidence: drop one level
+            assert adjust("CRITICAL", c) == "HIGH"
+            assert adjust("HIGH", c) == "MEDIUM"
+            assert adjust("MEDIUM", c) == "LOW"
+            assert adjust("LOW", c) == "LOW"
+
+        for c in (40, 45, 50, 59):   # moderate-low: only CRITICAL is reduced
+            assert adjust("CRITICAL", c) == "HIGH"
+            assert adjust("HIGH", c) == "HIGH"
+            assert adjust("MEDIUM", c) == "MEDIUM"
+            assert adjust("LOW", c) == "LOW"
+
+        for c in (60, 75, 100):      # confident: unchanged
+            for s in severities:
+                assert adjust(s, c) == s
+
+        # 3. Invariant: adjustment only ever de-escalates. Lower confidence must
+        #    never make a finding look *more* severe than its base severity.
+        rank = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+        for s in severities:
+            for c in confidences:
+                assert rank[adjust(s, c)] <= rank[s], (
+                    f"adjust_severity({s!r}, {c}) escalated to {adjust(s, c)!r}"
+                )
 
 
 class TestDeterminismProperties:

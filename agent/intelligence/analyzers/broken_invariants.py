@@ -54,7 +54,7 @@ class BrokenInvariantsAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -371,67 +371,74 @@ class BrokenInvariantsAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        in_init = False
-                        for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
-                            
-                            if 'def __init__' in line:
-                                in_init = True
-                            elif in_init and line.strip().startswith('def '):
-                                in_init = False
-                            
-                            if in_init:
-                                # Look for risky operations in __init__
-                                if re.search(r'open\(|\.parse|\.get|json\.load|requests\.', line):
-                                    if 'try' not in line and 'except' not in line:
-                                        issues.append((file_path, line_num))
+                        lines = f.readlines()
+                    self._record_lines(file_path, len(lines))
+                    guarded = self._try_guarded_lines(lines)
+
+                    in_init = False
+                    for line_num, raw_line in enumerate(lines, 1):
+                        line = self._strip_comment(raw_line)
+
+                        if 'def __init__' in line:
+                            in_init = True
+                        elif in_init and line.strip().startswith('def '):
+                            in_init = False
+
+                        if in_init and line_num not in guarded:
+                            # Look for risky operations in __init__
+                            if re.search(r'open\(|\.parse|\.get|json\.load|requests\.', line):
+                                issues.append((file_path, line_num))
                 except Exception:
                     pass
-        
+
         return issues
-    
+
     def _scan_for_missing_error_handling(self, repository_path: str) -> List[Tuple]:
         """Scan for missing error handling."""
         issues = []
-        
+
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
-            
-            for file in files:
+            }])
+
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
-                
+
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
-                
+                self._record_scanned_file(file_path)
+
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
-                            
-                            # Look for risky operations without try/except
-                            if re.search(r'\.read\(|\.parse|json\.load|requests\.', line):
-                                # Check if it's in a try block (simple heuristic)
-                                if 'try' not in line and '.get(' not in line:
-                                    issues.append((file_path, line_num))
+                        lines = f.readlines()
+                    self._record_lines(file_path, len(lines))
+                    guarded = self._try_guarded_lines(lines)
+
+                    for line_num, raw_line in enumerate(lines, 1):
+                        if line_num in guarded:
+                            continue
+                        line = self._strip_comment(raw_line)
+                        # Look for risky operations without try/except
+                        if re.search(r'\.read\(|\.parse|json\.load|requests\.', line):
+                            if '.get(' not in line:
+                                issues.append((file_path, line_num))
                 except Exception:
                     pass
-        
+
         return issues
     
     def _scan_for_incomplete_init(self, repository_path: str) -> List[Tuple]:
@@ -439,21 +446,21 @@ class BrokenInvariantsAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
+                        self._record_lines(file_path, len(content.split('\n')))
                         
                         # Look for classes with many attributes
                         classes = re.finditer(r'class\s+(\w+).*?:\n(.*?)(?=\nclass |\Z)', content, re.DOTALL)
@@ -461,8 +468,13 @@ class BrokenInvariantsAnalyzer(BaseAnalyzer):
                             class_def = match.group(2)
                             # Count self.x assignments in methods
                             method_attrs = len(re.findall(r'self\.\w+\s*=', class_def))
-                            # Count self.x accesses (likely use)
-                            method_uses = len(re.findall(r'self\.\w+(?!\s*=)', class_def))
+                            # Count self.x accesses (likely use).
+                            # \b blocks backtracking: without it `\w+` shortens
+                            # ('self.token' -> 'self.toke') until the negative
+                            # lookahead passes, so every assignment also counted
+                            # as a use and the effective threshold was
+                            # uses > attrs instead of uses > attrs * 2.
+                            method_uses = len(re.findall(r'self\.\w+\b(?!\s*=)', class_def))
                             
                             # If more uses than sets, likely incomplete init
                             if method_uses > method_attrs * 2:

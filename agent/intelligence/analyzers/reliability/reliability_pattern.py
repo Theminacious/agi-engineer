@@ -97,7 +97,7 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -582,9 +582,12 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -594,20 +597,21 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
-                        self.files_scanned += 1
-                        self.lines_analyzed += len(lines)
+                        self._record_scanned_file(file_path)
+                        self._record_lines(file_path, len(lines))
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for retry patterns
                             if 'retry' in line.lower() or ('for' in line and 'range' in line):
                                 # Check if backoff/sleep/delay present nearby
                                 context = ''.join(lines[max(0, line_num-1):min(line_num+5, len(lines))])
                                 if 'retry' in context.lower() and not any(word in context.lower() for word in ['sleep', 'backoff', 'delay', 'wait']):
-                                    issues.append((rel_path, line_num, 'retry_no_backoff', line.strip()))
+                                    issues.append((rel_path, line_num, 'retry_no_backoff', raw_line.strip()))
                             
                             # Check for immediate continue in except
                             if 'except' in line and 'continue' in line:
-                                issues.append((rel_path, line_num, 'immediate_retry', line.strip()))
+                                issues.append((rel_path, line_num, 'immediate_retry', raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -619,9 +623,12 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -632,20 +639,21 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for requests without timeout
                             if 'requests.' in line and '(' in line:
                                 if 'timeout' not in line:
-                                    issues.append((rel_path, line_num, 'http_request', line.strip()))
+                                    issues.append((rel_path, line_num, 'http_request', raw_line.strip()))
                             
                             # Check for socket without timeout
                             if 'socket.socket(' in line:
                                 if 'settimeout' not in line:
-                                    issues.append((rel_path, line_num, 'socket', line.strip()))
+                                    issues.append((rel_path, line_num, 'socket', raw_line.strip()))
                             
                             # Check for DB connection without timeout
                             if '.connect(' in line and 'timeout' not in line:
-                                issues.append((rel_path, line_num, 'db_connection', line.strip()))
+                                issues.append((rel_path, line_num, 'db_connection', raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -657,9 +665,12 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -670,14 +681,15 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for bare except
                             if re.match(r'^\s*except\s*:\s*$', line):
-                                issues.append((rel_path, line_num, 'bare_except', line.strip()))
+                                issues.append((rel_path, line_num, 'bare_except', raw_line.strip()))
                             
                             # Check for except: pass
                             if re.search(r'except[^:]*:\s*pass', line):
-                                issues.append((rel_path, line_num, 'pass_except', line.strip()))
+                                issues.append((rel_path, line_num, 'pass_except', raw_line.strip()))
                             
                             # Check for except without logging
                             if line.strip().startswith('except') and ':' in line:
@@ -685,7 +697,7 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
                                 next_lines = ''.join(lines[line_num:min(line_num+3, len(lines))])
                                 if not any(word in next_lines for word in ['log', 'print', 'raise', 'raise']):
                                     if 'pass' not in next_lines and next_lines.strip():
-                                        issues.append((rel_path, line_num, 'silent_except', line.strip()))
+                                        issues.append((rel_path, line_num, 'silent_except', raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -697,9 +709,12 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -713,7 +728,8 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
                         
                         # Find async functions
                         async_funcs = []
-                        for i, line in enumerate(lines):
+                        for i, raw_line in enumerate(lines):
+                            line = self._strip_comment(raw_line)
                             if re.match(r'^\s*async\s+def\s+\w+', line):
                                 async_funcs.append(i)
                         
@@ -730,11 +746,11 @@ class ReliabilityPatternAnalyzer(BaseAnalyzer):
                                 
                                 # Check for blocking operations
                                 if 'time.sleep(' in line:
-                                    issues.append((rel_path, line_num, 'time.sleep', line.strip()))
+                                    issues.append((rel_path, line_num, 'time.sleep', raw_line.strip()))
                                 elif 'requests.' in line:
-                                    issues.append((rel_path, line_num, 'requests', line.strip()))
+                                    issues.append((rel_path, line_num, 'requests', raw_line.strip()))
                                 elif re.search(r'\bopen\(', line):
-                                    issues.append((rel_path, line_num, 'open', line.strip()))
+                                    issues.append((rel_path, line_num, 'open', raw_line.strip()))
                 
                 except Exception:
                     continue

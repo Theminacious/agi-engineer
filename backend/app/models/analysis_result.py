@@ -1,6 +1,6 @@
 """Analysis result model for storing discovered issues and fixes."""
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -33,6 +33,11 @@ class AnalysisResult(Base):
     before_code = Column(Text, nullable=True)
     after_code = Column(Text, nullable=True)
     is_fixed = Column(Integer, default=0)  # 0=no, 1=yes, 2=partial
+    file_class = Column(String(30), nullable=True)
+    relevance = Column(String(20), nullable=True)
+    confidence = Column(Integer, nullable=True)
+    recommendation = Column(String(30), nullable=True)
+    finding_context = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

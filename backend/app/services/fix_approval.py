@@ -21,6 +21,12 @@ from sqlalchemy.orm import Session
 
 from app.models.code_fix import CodeFix, FixStatus
 from app.plans import UserPlanContext, PlanTier, PLAN_REGISTRY
+from app.services.fix_governance import (
+    blocks_approval,
+    change_risk_context,
+    governance_ledger,
+    record_review_requested,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +80,8 @@ class FixApprovalService:
         fix_id: int,
         plan_context: UserPlanContext,
         approved_by: str,
-        ledger_writer=None
+        ledger_writer=None,
+        acknowledge_change_risk: bool = False,
     ) -> Dict[str, Any]:
         """
         Approve a proposed fix for application.
@@ -123,15 +130,28 @@ class FixApprovalService:
                     "current_status": fix.status.value
                 }
             
-            # 4. Update fix
+            # 4. Change risk gate (Phase 20)
+            risk_context = change_risk_context(self.db, fix)
+            governance = governance_ledger(risk_context, repo_id=str(fix.ledger_run_id or ""))
+            block_reason = blocks_approval(risk_context, acknowledge_change_risk)
+            if block_reason:
+                record_review_requested(governance, risk_context, fix_id, approved_by)
+                return {
+                    "success": False,
+                    "error": "change_risk_acknowledgement_required",
+                    "message": block_reason,
+                    "change_risk": risk_context,
+                }
+
+            # 5. Update fix
             now = datetime.utcnow()
             fix.status = FixStatus.APPROVED
             fix.approved_by = approved_by
             fix.approved_at = now
             fix.approval_plan = plan_context.plan_tier.value
             fix.updated_at = now
-            
-            # 5. Record in ledger
+
+            # 6. Record in ledger
             ledger_event_id = None
             if ledger_writer and fix.ledger_run_id:
                 ledger_event_id = str(uuid.uuid4())
@@ -144,17 +164,39 @@ class FixApprovalService:
                     payload_ref=ledger_event_id
                 )
                 fix.approval_ledger_event_id = ledger_event_id
-            
-            # 6. Commit
+
+            if governance is not None:
+                if risk_context.get("requirement") in (
+                    "review_recommended",
+                    "human_review_required",
+                    "explicit_approval_required",
+                    "unknown",
+                ):
+                    record_review_requested(governance, risk_context, fix_id, approved_by)
+                governance.append_event(
+                    event_type="FIX_APPROVED",
+                    summary=(
+                        f"Fix #{fix_id} approved by {approved_by} at change risk "
+                        f"{(risk_context.get('level') or 'unknown').upper()}"
+                        + (" (acknowledged)" if acknowledge_change_risk else "")
+                    ),
+                    actor=approved_by,
+                    actor_role="Human",
+                    phase="PHASE_20",
+                    payload_ref=risk_context.get("risk_hash") or ledger_event_id,
+                )
+
+            # 7. Commit
             self.db.commit()
             self.db.refresh(fix)
-            
+
             logger.info(f"Fix {fix_id} approved by {approved_by} (plan={plan_context.plan_tier.value})")
-            
+
             return {
                 "success": True,
                 "fix": fix.to_dict(),
                 "ledger_event_id": ledger_event_id,
+                "change_risk": risk_context,
                 "message": "Fix approved successfully. Ready to apply."
             }
             

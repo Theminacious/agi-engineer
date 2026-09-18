@@ -78,3 +78,18 @@ agi_engineer_v2.db
 
 # Local runtime DB
 agi_engineer_v2.db
+
+# Local/generated artifacts
+backend/agi_engineer_v2.db
+frontend/tsconfig.tsbuildinfo
+
+# External validation repositories
+real-repos/
+
+# External validation repositories
+
+# External repositories used by mutation validation
+experiments/mutation_validation/repos/
+
+# Mutation validation run outputs
+experiments/mutation_validation/runs/

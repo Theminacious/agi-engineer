@@ -1,0 +1,29 @@
+# Test / development dependencies.
+#
+# PRODUCTION_READINESS_AUDIT.md P2 #5 ("Install Test Dependencies") notes that
+# the suite cannot run without pytest, which nothing declared.
+#
+# Kept separate from requirements.txt rather than appended to it, because the
+# Dockerfile builds the production image with `pip install -r requirements.txt`
+# — putting pytest there would ship the test framework into production to fix a
+# test-environment problem.
+#
+# Fresh environment:
+#     python -m venv .venv && . .venv/bin/activate
+#     pip install -r requirements-dev.txt
+#     python -m pytest
+#
+# No PYTHONPATH export is needed: pytest.ini declares the import roots via the
+# `pythonpath` ini option, which is why the pytest floor below is 7.x.
+
+-r requirements.txt
+
+# pytest>=7.0 is a hard floor, not a preference: pytest.ini relies on the
+# `pythonpath` ini option, added in 7.0. On 6.x that key is silently ignored and
+# every `from app...` import in backend/tests fails at collection.
+pytest>=7.4,<9
+
+# The FastAPI/Starlette TestClient used by backend/tests/conftest.py is built on
+# httpx. It is already pinned in requirements.txt as a runtime dependency; named
+# here so the test requirement is explicit rather than incidental.
+# httpx==0.28.1  (see requirements.txt)

@@ -54,7 +54,7 @@ class AbstractionLeakageAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -368,21 +368,21 @@ class AbstractionLeakageAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
+                            self._record_lines(file_path, line_num)
                             
                             # Look for obj._private or obj.__dunder
                             if re.search(r'\.\s*_[a-zA-Z_]\w*', line):
@@ -399,21 +399,21 @@ class AbstractionLeakageAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
+                            self._record_lines(file_path, line_num)
                             
                             # Look for .[...] or .['...']
                             if re.search(r'\.\s*\[|\.get\(|\.keys\(|\.values\(', line):
@@ -428,21 +428,21 @@ class AbstractionLeakageAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {
+            dirs[:] = sorted([d for d in dirs if d not in {
                 '__pycache__', '.git', 'venv', 'build', 'dist'
-            }]
+            }])
             
-            for file in files:
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line_num, line in enumerate(f, 1):
-                            self.lines_analyzed += 1
+                            self._record_lines(file_path, line_num)
                             
                             # Look for -> dict, -> list, -> set
                             if re.search(r'->\s*(dict|list|set|tuple)\b', line):

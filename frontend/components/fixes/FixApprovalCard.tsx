@@ -18,6 +18,7 @@
  */
 
 import { useState } from 'react'
+import { apiUrl } from '@/lib/api'
 import { usePlanSelection } from '@/hooks/usePlanSelection'
 import SectionCard from '@/components/ui/SectionCard'
 import AuditPanel from '@/components/ui/AuditPanel'
@@ -91,7 +92,7 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
         await onApprove(fix.id)
       } else {
         // Default API call
-        const response = await fetch(`/api/fixes/${fix.id}/approve`, {
+        const response = await fetch(apiUrl(`/api/fixes/${fix.id}/approve`), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -126,7 +127,7 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
       if (onReject) {
         await onReject(fix.id, rejectReason)
       } else {
-        const response = await fetch(`/api/fixes/${fix.id}/reject`, {
+        const response = await fetch(apiUrl(`/api/fixes/${fix.id}/reject`), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -163,7 +164,7 @@ export function FixApprovalCard({ fix, onApprove, onReject, onApply, issue }: Fi
       if (onApply) {
         await onApply(fix.id, dryRun)
       } else {
-        const response = await fetch(`/api/fixes/${fix.id}/apply-governed`, {
+        const response = await fetch(apiUrl(`/api/fixes/${fix.id}/apply-governed`), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

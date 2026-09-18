@@ -95,7 +95,7 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -364,11 +364,11 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
             if file_path not in issues_by_file:
                 issues_by_file[file_path] = []
             issues_by_file[file_path].append((line_num, leak_type, code_snippet))
-        
+
         proposal.affected_files = [
             AffectedFile(
                 path=file_path,
-                line_range=f"{min(l for l, _ in locations)}-{max(l for l, _ in locations)}",
+                line_range=f"{min(l for l, _, _ in locations)}-{max(l for l, _, _ in locations)}",
                 severity=Severity.MEDIUM,
             )
             for file_path, locations in issues_by_file.items()
@@ -475,11 +475,11 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
             if file_path not in issues_by_file:
                 issues_by_file[file_path] = []
             issues_by_file[file_path].append((line_num, thread_type, code_snippet))
-        
+
         proposal.affected_files = [
             AffectedFile(
                 path=file_path,
-                line_range=f"{min(l for l, _ in locations)}-{max(l for l, _ in locations)}",
+                line_range=f"{min(l for l, _, _ in locations)}-{max(l for l, _, _ in locations)}",
                 severity=Severity.HIGH,
             )
             for file_path, locations in issues_by_file.items()
@@ -551,9 +551,12 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -563,15 +566,16 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
-                        self.files_scanned += 1
-                        self.lines_analyzed += len(lines)
+                        self._record_scanned_file(file_path)
+                        self._record_lines(file_path, len(lines))
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for open() without 'with'
                             if 'open(' in line and 'with' not in line:
                                 # Verify it's an assignment
                                 if '=' in line and 'open(' in line.split('=')[1]:
-                                    issues.append((rel_path, line_num, line.strip()))
+                                    issues.append((rel_path, line_num, raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -583,9 +587,12 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -597,16 +604,17 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
                         content = f.read()
                         lines = content.split('\n')
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for connection patterns
                             if '.connect(' in line and 'with' not in line:
-                                issues.append((rel_path, line_num, 'db_connection', line.strip()))
+                                issues.append((rel_path, line_num, 'db_connection', raw_line.strip()))
                             
                             if '.cursor(' in line and 'with' not in line:
-                                issues.append((rel_path, line_num, 'db_cursor', line.strip()))
+                                issues.append((rel_path, line_num, 'db_cursor', raw_line.strip()))
                             
                             if 'socket.socket(' in line and 'with' not in line:
-                                issues.append((rel_path, line_num, 'socket', line.strip()))
+                                issues.append((rel_path, line_num, 'socket', raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -618,9 +626,12 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -631,16 +642,17 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for unbounded cache patterns
                             if re.search(r'(cache|memo|store)\s*=\s*\{\}', line):
                                 # Check if it's a global or class variable
                                 if not line.startswith('    '):  # Rough heuristic for module level
-                                    issues.append((rel_path, line_num, 'unbounded_cache', line.strip()))
+                                    issues.append((rel_path, line_num, 'unbounded_cache', raw_line.strip()))
                             
                             # Check for global list accumulators
                             if re.search(r'^(\w+)\s*=\s*\[\]', line):
-                                issues.append((rel_path, line_num, 'global_accumulator', line.strip()))
+                                issues.append((rel_path, line_num, 'global_accumulator', raw_line.strip()))
                 
                 except Exception:
                     continue
@@ -652,9 +664,12 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
         issues = []
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', 'venv', '.venv'}])
             
-            for file in files:
+            # sorted(): os.walk yields directory entries in filesystem order,
+            # which varies by OS and filesystem. Scan order reaches the payload
+            # via affected_files and patterns_matched, so it is pinned here.
+            for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
                 
@@ -666,17 +681,18 @@ class ResourceLeakAnalyzer(BaseAnalyzer):
                         content = f.read()
                         lines = content.split('\n')
                         
-                        for line_num, line in enumerate(lines, 1):
+                        for line_num, raw_line in enumerate(lines, 1):
+                            line = self._strip_comment(raw_line)
                             # Check for Thread.start() without join
                             if 'Thread(' in line and '.start()' in line:
                                 # Simple heuristic: check if 'join' appears nearby
                                 context = ''.join(lines[line_num:min(line_num+5, len(lines))])
                                 if '.join()' not in context:
-                                    issues.append((rel_path, line_num, 'thread', line.strip()))
+                                    issues.append((rel_path, line_num, 'thread', raw_line.strip()))
                             
                             # Check for ThreadPoolExecutor without 'with' or shutdown
                             if 'ThreadPoolExecutor(' in line and 'with' not in line:
-                                issues.append((rel_path, line_num, 'thread_pool', line.strip()))
+                                issues.append((rel_path, line_num, 'thread_pool', raw_line.strip()))
                 
                 except Exception:
                     continue

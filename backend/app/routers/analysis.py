@@ -10,15 +10,43 @@ from app.models.analysis_run import AnalysisRun, RunStatus
 from app.models.analysis_result import AnalysisResult, IssueCategory
 from app.models.repository import Repository
 from app.models.code_fix import CodeFix
+from app.services.repository_registry import register_repository_from_url
 from app.v1_engine import V1AnalysisEngine
 from app.config import settings
 from app.schemas import AnalysisRunResponse
 from app.security import verify_token
+from app.services.finding_context import Recommendation, Relevance
 import logging
 import re
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+
+def summarize_persisted_results(results: List[AnalysisResult]) -> dict:
+    by_relevance = {r.value: 0 for r in Relevance}
+    by_recommendation = {r.value: 0 for r in Recommendation}
+    by_file_class: dict = {}
+    unclassified = 0
+
+    for result in results:
+        if result.relevance in by_relevance:
+            by_relevance[result.relevance] += 1
+        else:
+            unclassified += 1
+        if result.recommendation in by_recommendation:
+            by_recommendation[result.recommendation] += 1
+        key = result.file_class or "unclassified"
+        by_file_class[key] = by_file_class.get(key, 0) + 1
+
+    return {
+        "by_relevance": by_relevance,
+        "by_recommendation": by_recommendation,
+        "by_file_class": dict(sorted(by_file_class.items())),
+        "actionable_count": by_relevance[Relevance.ACTIONABLE.value],
+        "informational_count": by_relevance[Relevance.INFORMATIONAL.value],
+        "unclassified_count": unclassified,
+    }
 
 
 def validate_github_url(url: str) -> tuple[str, str]:
@@ -134,6 +162,8 @@ async def get_analysis_run(
         "pr_number": run.pull_request_number,
         "status": run.status.value,
         "total_results": len(results),
+        "executed_analyzers": V1AnalysisEngine.CAPABILITY_IDS,
+        "relevance_summary": summarize_persisted_results(results),
         "results": [
             {
                 "id": r.id,
@@ -142,8 +172,14 @@ async def get_analysis_run(
                 "code": r.issue_code,
                 "name": r.issue_name,
                 "category": r.category.value,
+                "severity": r.severity,
                 "message": r.message,
                 "is_fixed": r.is_fixed,
+                "file_class": r.file_class,
+                "relevance": r.relevance,
+                "confidence": r.confidence,
+                "recommendation": r.recommendation,
+                "context": r.finding_context,
             }
             for r in results
         ],
@@ -421,6 +457,8 @@ async def _execute_analysis_background(
                 except Exception:
                     category_enum = IssueCategory.SUGGESTION
 
+                context = issue.get("context") or {}
+
                 result = AnalysisResult(
                     run_id=run_id,
                     file_path=issue.get("file_path", ""),
@@ -431,6 +469,11 @@ async def _execute_analysis_background(
                     severity=str(issue.get("severity", "info")),
                     message=issue.get("message", ""),
                     is_fixed=1 if category_enum == IssueCategory.SAFE else 0,
+                    file_class=context.get("file_class"),
+                    relevance=context.get("relevance"),
+                    confidence=context.get("confidence"),
+                    recommendation=context.get("recommendation"),
+                    finding_context=context or None,
                 )
                 results_to_add.append(result)
 
@@ -834,23 +877,12 @@ async def run_analysis_on_repo(
         if not re.match(r'^[a-zA-Z0-9._/-]+$', branch):
             raise HTTPException(status_code=400, detail="Invalid branch name")
         
-        # Create or get repository record
-        repo = db.query(Repository).filter(
-            Repository.repo_full_name == repo_full_name
-        ).first()
-        
-        if not repo:
-            # For manually imported repos, we need minimal fields
-            repo = Repository(
-                repo_full_name=repo_full_name,
-                repo_name=repo_name,
-                github_repo_id=0,  # Will be 0 for manually imported
-                installation_id=1,  # Use default installation
-                is_enabled=True,
-            )
-            db.add(repo)
-            db.flush()
-        
+        repo, _ = register_repository_from_url(
+            db,
+            repo_full_name=repo_full_name,
+            repo_name=repo_name,
+        )
+
         # Create new analysis run
         run = AnalysisRun(
             repository_id=repo.id,
@@ -882,8 +914,12 @@ async def run_analysis_on_repo(
             "auto_fix_enabled": auto_fix,
             "message": "Analysis queued for execution",
         }
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
-        logger.error(f"Failed to queue analysis: {str(e)}")
+        db.rollback()
+        logger.error(f"Failed to queue analysis: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=400,
             detail=f"Failed to queue analysis: {str(e)}"
@@ -982,10 +1018,11 @@ async def run_v3_advanced_analysis(
             return results
             
         finally:
-            # Cleanup temporary directory
-            import shutil
-            if Path(temp_dir).exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
+            # Cleanup temporary directory. Counted rather than ignore_errors, so
+            # a workspace that cannot be removed is visible on /health instead
+            # of silently consuming disk.
+            from app.services.cleanup import safe_rmtree
+            safe_rmtree(temp_dir, kind="v3_analysis")
     
     except Exception as e:
         logger.error(f"v3 advanced analysis failed: {str(e)}", exc_info=True)

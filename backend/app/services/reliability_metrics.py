@@ -46,7 +46,28 @@ class ReliabilityMetricsService:
             db_session: Database session
         """
         self.db_session = db_session
-    
+
+    def _commit(self, description: str) -> None:
+        """Commit the session, or roll back and re-raise.
+
+        A commit that fails does not release its transaction: SQLAlchemy marks
+        it as needing rollback, and every later operation on the session raises
+        PendingRollbackError reporting the *first* error rather than doing the
+        work. Rolling back here keeps one failed write from disabling the rest
+        of the caller's session.
+
+        The exception is re-raised, so callers see failures exactly as before.
+
+        Args:
+            description: What was being written, for the log line.
+        """
+        try:
+            self.db_session.commit()
+        except Exception as exc:
+            self.db_session.rollback()
+            logger.error(f"Rolled back after failed commit ({description}): {exc}")
+            raise
+
     def get_or_create_repo_metrics(self, repository_id: int) -> RepoMetrics:
         """Get existing repo metrics or create new one.
         
@@ -67,7 +88,7 @@ class ReliabilityMetricsService:
                 score_grade="A"
             )
             self.db_session.add(metrics)
-            self.db_session.commit()
+            self._commit(f"create RepoMetrics for repository {repository_id}")
             logger.info(f"Created new RepoMetrics for repository {repository_id}")
         
         return metrics
@@ -218,8 +239,8 @@ class ReliabilityMetricsService:
         # Update timestamps
         metrics.last_analysis_at = datetime.utcnow()
         metrics.last_score_update_at = datetime.utcnow()
-        
-        self.db_session.commit()
+
+        self._commit(f"metrics after PR analysis {pr_analysis_id}")
         
         # Create risk snapshot
         self._create_risk_snapshot(
@@ -324,8 +345,8 @@ class ReliabilityMetricsService:
         # Update timestamps
         metrics.last_fix_applied_at = datetime.utcnow()
         metrics.last_score_update_at = datetime.utcnow()
-        
-        self.db_session.commit()
+
+        self._commit(f"metrics after fix {fix_id} applied")
         
         # Create risk snapshot
         self._create_risk_snapshot(
@@ -590,8 +611,8 @@ class ReliabilityMetricsService:
         )
         
         self.db_session.add(snapshot)
-        self.db_session.commit()
-        
+        self._commit(f"risk snapshot ({snapshot_type})")
+
         logger.debug(f"Created risk snapshot: type={snapshot_type}, score={reliability_score:.1f}")
         
         return snapshot

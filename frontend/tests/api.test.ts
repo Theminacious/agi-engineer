@@ -82,3 +82,44 @@ describe('frontend lib/api', () => {
     await expect(api.healthCheck()).rejects.toThrow('Health check failed')
   })
 })
+
+describe('OAuth URLs go through apiUrl', () => {
+  // The /auth page's only backend call is getOAuthUrl. When it targets the
+  // wrong origin the browser reports "Failed to fetch" — a TypeError from
+  // fetch, not one of the messages above — so nothing in the app can explain
+  // it. These assert the helper is what builds the URL, so base-URL
+  // normalisation applies to the flow that bootstraps the whole app.
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
+  })
+
+  it('builds the authorize URL with apiUrl, not a raw template string', async () => {
+    await api.getOAuthUrl()
+    expect(global.fetch).toHaveBeenCalledWith(api.apiUrl('/oauth/authorize'))
+  })
+
+  it('builds the callback URL with apiUrl', async () => {
+    await api.oauthCallback('CODE', 'STATE')
+    expect(global.fetch).toHaveBeenCalledWith(
+      api.apiUrl('/oauth/callback?code=CODE&state=STATE'),
+    )
+  })
+
+  it('targets the backend origin, never the Next.js origin', async () => {
+    await api.getOAuthUrl()
+    const requested = String((global.fetch as any).mock.calls[0][0])
+    expect(requested.startsWith(api.API_BASE)).toBe(true)
+    expect(requested).not.toMatch(/^\//)
+  })
+
+  it('never produces a doubled separator when the base has a trailing slash', () => {
+    // NEXT_PUBLIC_API_URL is copied into .env.local by hand.
+    expect(api.apiUrl('/oauth/authorize')).not.toContain('//oauth/authorize')
+  })
+
+  it('never produces /api/api because the oauth routes carry no /api prefix', () => {
+    expect(api.apiUrl('/oauth/authorize')).not.toContain('/api/api')
+    expect(api.apiUrl('/oauth/authorize')).toBe(`${api.API_BASE}/oauth/authorize`)
+  })
+})

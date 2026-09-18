@@ -74,7 +74,7 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -251,7 +251,7 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
         # Heuristic: detect when modules import too much from unrelated domains
         domain_imports = self._analyze_domain_cohesion(graph, repository_path)
         
-        for domain_pair, import_count in domain_imports.items():
+        for domain_pair, import_count in sorted(domain_imports.items()):
             if import_count < 3:  # Only flag significant leakage
                 continue
             
@@ -386,7 +386,7 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
             
             proposal.affected_files = [
                 AffectedFile(path=self._module_to_file_path(module), severity=Severity.HIGH)
-                for module in cluster
+                for module in sorted(cluster)
             ]
             
             proposal.suggested_strategies = [
@@ -494,7 +494,7 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
             
             module_layer_level = module_to_layer[module][1]
             
-            for imported_module in imports:
+            for imported_module in sorted(imports):
                 if imported_module not in module_to_layer:
                     continue
                 
@@ -511,7 +511,7 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
                     violations[violation_key].append((module, imported_module))
         
         # Create proposals for each violation pattern
-        for (from_layer, to_layer), module_pairs in violations.items():
+        for (from_layer, to_layer), module_pairs in sorted(violations.items()):
             if len(module_pairs) == 0:
                 continue
             
@@ -544,7 +544,7 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
                 affected_modules.add(source)
                 affected_modules.add(target)
             
-            for module in affected_modules:
+            for module in sorted(affected_modules):
                 file_path = self._module_to_file_path(module)
                 proposal.affected_files.append(
                     AffectedFile(path=file_path, severity=Severity.HIGH)
@@ -631,35 +631,108 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
                     continue
                 
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
+                self._record_scanned_file(file_path)
                 
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
+                        self._record_lines(file_path, len(content.split('\n')))
                     
                     module_name = self._get_module_name(file_path, repository_path)
                     if module_name and not module_name.startswith('_'):
-                        imports = self._extract_imports_deterministic(file_path)
-                        if imports:
-                            graph[module_name] = imports
+                        # Registered even when it imports nothing: an edge can
+                        # only be recognised if its *target* is a node, and the
+                        # modules other layers depend on (models, constants,
+                        # pure data) are frequently import-free leaves. Skipping
+                        # them made _detect_layer_violations and
+                        # _detect_domain_leakage structurally unable to fire.
+                        graph[module_name] = self._resolve_imports(
+                            self._extract_imports_deterministic(file_path),
+                            module_name,
+                        )
                 except Exception:
                     pass
-        
+
         return dict(sorted(graph.items()))  # Deterministic order
+
+    def _resolve_imports(self, raw_imports: Set[str], module_name: str) -> Set[str]:
+        """
+        Resolve raw import targets into the graph's module-name namespace.
+
+        Graph keys are dotted paths relative to the repository root
+        ('flask.app'), so a relative import spec ('.app', '..ctx') has to be
+        rebased onto the importing module's package or it matches no node. On
+        flask/src only 2 of 261 edges resolved before this: every intra-package
+        import is relative, so the import graph had no interior and all four
+        detectors returned nothing on any package using relative imports.
+        """
+        package = module_name.rsplit('.', 1)[0] if '.' in module_name else ''
+        if module_name.endswith('.__init__'):
+            package = module_name[: -len('.__init__')]
+        elif module_name == '__init__':
+            package = ''
+
+        resolved = set()
+        for spec in raw_imports:
+            if not spec.startswith('.'):
+                resolved.add(spec)
+                continue
+            depth = len(spec) - len(spec.lstrip('.'))
+            tail = spec.lstrip('.')
+            base = package.split('.') if package else []
+            # One dot means "this package"; each extra dot climbs one level.
+            for _ in range(depth - 1):
+                if base:
+                    base.pop()
+            parts = [p for p in base + ([tail] if tail else []) if p]
+            if parts:
+                resolved.add('.'.join(parts))
+        return resolved
     
     def _extract_imports_deterministic(self, file_path: str) -> Set[str]:
-        """Extract imports in deterministic way."""
+        """Extract raw import targets, as written.
+
+        Relative specs keep their leading dots for `_resolve_imports` to rebase;
+        a dotted absolute path is recorded in full, since graph keys are full
+        dotted paths and truncating to the top-level package matched no node in
+        a packaged project.
+
+        Imports guarded by `if TYPE_CHECKING:` are skipped. They are erased at
+        runtime, so counting them creates cycles and coupling that cannot occur
+        during execution — flask's app/ctx/globals "cycles" are largely of this
+        kind.
+
+        Known limitation: `from app.db import models` records 'app.db', because
+        resolving an imported *name* to a submodule needs the set of known
+        modules, which is not available here. Dotted forms resolve correctly.
+        """
         imports = set()
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                for line in f:
-                    line = line.strip()
+                type_checking_indent: Optional[int] = None
+                for raw_line in f:
+                    code = self._strip_comment(raw_line)
+                    stripped = code.strip()
+                    if not stripped:
+                        continue
+                    indent = len(raw_line) - len(raw_line.lstrip())
+
+                    if type_checking_indent is not None:
+                        if indent > type_checking_indent:
+                            continue
+                        type_checking_indent = None
+
+                    if stripped.startswith('if ') and 'TYPE_CHECKING' in stripped \
+                            and stripped.endswith(':'):
+                        type_checking_indent = indent
+                        continue
+
+                    line = stripped
                     if (line.startswith('import ') or line.startswith('from ')) and not line.startswith('import_'):
                         if 'import ' in line:
                             parts = line.split()
                             if len(parts) > 1:
-                                module = parts[1].split('.')[0]
+                                module = parts[1]
                                 if module and not module.startswith('_') and module != 'import':
                                     imports.add(module)
         except Exception:
@@ -712,27 +785,34 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
         graph: Dict[str, Set[str]],
         repository_path: str,
     ) -> Dict[Tuple[str, str], int]:
-        """Count cross-domain imports."""
+        """Count cross-domain imports, keyed (importing_domain, imported_domain).
+
+        The key was `tuple(sorted(...))`, which merged both directions into one
+        undirected pair. The proposal built from it then names a direction —
+        "{domain_a} makes N cross-domain imports from {domain_b}", and strategies
+        telling {domain_a} to depend on an interface — so whenever the pair
+        sorted the other way the finding stated the dependency backwards.
+        """
         domain_imports: Dict[Tuple[str, str], int] = {}
-        
+
         module_to_domain = self._classify_modules_to_domains(graph.keys(), repository_path)
-        
+
         for module, imports in graph.items():
             if module not in module_to_domain:
                 continue
-            
+
             module_domain = module_to_domain[module]
-            
-            for imported in imports:
+
+            for imported in sorted(imports):
                 if imported not in module_to_domain:
                     continue
-                
+
                 imported_domain = module_to_domain[imported]
-                
+
                 if module_domain != imported_domain:
-                    key = tuple(sorted([module_domain, imported_domain]))
+                    key = (module_domain, imported_domain)
                     domain_imports[key] = domain_imports.get(key, 0) + 1
-        
+
         return domain_imports
     
     def _classify_modules_to_domains(self, modules, repository_path: str) -> Dict[str, str]:
@@ -756,20 +836,25 @@ class EnhancedArchitecturalAnalyzer(BaseAnalyzer):
             """Find cluster starting from node with high internal connectivity."""
             cluster = {start}
             queue = [start]
-            
+
             while queue:
                 node = queue.pop(0)
-                
-                for neighbor in graph.get(node, set()):
+
+                # sorted(): cluster growth depends on visit order, because each
+                # candidate is tested against the cluster as it stands. Set
+                # iteration order varies with PYTHONHASHSEED, so unsorted this
+                # produced different clusters (5 modules at 65% vs 6 at 53%)
+                # from run to run on identical source.
+                for neighbor in sorted(graph.get(node, set())):
                     if neighbor not in cluster:
                         # Check if neighbor is well-connected within cluster
                         internal_connections = len(graph.get(neighbor, set()) & cluster)
                         potential_connections = len(cluster)
-                        
+
                         if potential_connections > 0 and internal_connections / potential_connections >= threshold:
                             cluster.add(neighbor)
                             queue.append(neighbor)
-            
+
             return cluster
         
         for node in sorted(graph.keys()):

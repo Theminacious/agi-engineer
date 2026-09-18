@@ -1,0 +1,78 @@
+name: Tests
+
+# PRODUCTION_READINESS_AUDIT.md P2 #5. Neither existing workflow runs the test
+# suite — code-quality.yml and manual-check.yml both run the analyzer on this
+# repository — so nothing verified that a fresh environment could execute the
+# tests. That is the failure this job exists to catch: the suite collected on a
+# developer's pinned pytest 7.x while aborting on a clean install of pytest 8.
+#
+# No PYTHONPATH is exported anywhere below. Import roots come from pytest.ini's
+# `pythonpath` option, and this job passing is what proves that is sufficient.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 matches the Dockerfile's base image; 3.13 is what development
+        # currently runs on. Both are tested so the two cannot drift apart
+        # unnoticed.
+        python-version: ['3.11', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Show resolved versions
+        run: |
+          python --version
+          python -m pytest --version
+
+      - name: Run test suite
+        # Deliberately no -k, no --ignore, no -p no:… : the whole suite runs, and
+        # a filter added here to get the job green would defeat its purpose.
+        run: python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Run tests
+        run: npx vitest run

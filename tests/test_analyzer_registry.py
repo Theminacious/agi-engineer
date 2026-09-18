@@ -26,6 +26,7 @@ ALLOWED_CATEGORIES = {
     "security",
     "testing",
     "configuration",
+    "reliability",
 }
 
 ALLOWED_PLANS = ["developer", "team", "enterprise"]
@@ -51,6 +52,12 @@ EXPECTED_IDS = [
     # Configuration
     "configuration",
     "dependencies",
+    # Reliability (Phase 16)
+    "crash_risk",
+    "edge_case_logic",
+    "reliability_pattern",
+    "resource_leak",
+    "scalability_risk",
 ]
 
 

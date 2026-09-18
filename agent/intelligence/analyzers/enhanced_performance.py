@@ -74,7 +74,7 @@ class EnhancedPerformanceAnalyzer(BaseAnalyzer):
         for proposal in proposals:
             proposal.repository_url = repository_url
             proposal.branch = branch
-            finalized.append(self._finalize_proposal(proposal))
+            finalized.append(self._finalize_proposal(proposal, repository_path))
         
         return finalized
     
@@ -99,7 +99,8 @@ class EnhancedPerformanceAnalyzer(BaseAnalyzer):
             proposal.problem_statement = (
                 f"N+1 query pattern detected in {issue['location']}: "
                 f"Loop fetching {issue['item_count']} items, then database query for each. "
-                f"This creates {issue['item_count'] + 1} database hits for what should be 1-2."
+                f"This creates one database hit per item plus the initial query, "
+                f"for what should be 1-2."
             )
             
             proposal.risk_explanation = (
@@ -564,7 +565,7 @@ class EnhancedPerformanceAnalyzer(BaseAnalyzer):
                         f"instead of recalculating."
                     ),
                     effort_estimate=EffortEstimate.SMALL,
-                    prerequiseffort_actions=[
+                    prerequisite_actions=[
                         "Identify expensive operation",
                         "Design cache key",
                         "Implement caching",
@@ -597,81 +598,137 @@ class EnhancedPerformanceAnalyzer(BaseAnalyzer):
     def _scan_for_n_plus_one(self, repository_path: str) -> List[Dict]:
         """Scan for N+1 query patterns."""
         issues = []
-        
-        query_pattern = re.compile(
-            r'for\s+\w+\s+in\s+.*?:.*?\.query\(|\.get\(|\.filter\(',
-            re.DOTALL
+
+        # A finding requires a loop *and* a per-iteration database call.
+        #
+        # The alternation has to stay grouped. `|` binds looser than the
+        # surrounding sequence, so the earlier form
+        #
+        #     r'for\s+\w+\s+in\s+.*?:.*?\.query\(|\.get\(|\.filter\('
+        #
+        # parsed as three independent branches, and the last two matched a bare
+        # `.get(` or `.filter(` anywhere in the file with no loop required. Any
+        # module calling `config.get("host")` or `os.environ.get("PORT")` was
+        # reported as an N+1 query, which is also why this path crashed so
+        # readily on the `item_count` formatting below.
+        #
+        # `.get(` counts only when the receiver is ORM-ish (`session.get(`,
+        # `.objects.get(`, `.query.get(`): a plain `d.get(k)` is a dict lookup
+        # and `requests.get(url)` is network I/O, neither of which is a database
+        # hit. The body window is bounded to a few lines so a query far below
+        # an unrelated loop does not attach to it.
+        query_call = (
+            r'(?:'
+            r'\.query\(|\.filter\(|\.filter_by\('
+            r'|\.objects\.(?:get|filter)\('
+            r'|\.query\.get\('
+            r'|\b(?:session|db|conn|cursor)\.(?:get|execute)\('
+            r')'
         )
-        
+        query_pattern = re.compile(
+            r'for\s+\w+\s+in\s+[^\n]*:'   # loop header, through its colon
+            r'(?:[^\n]*\n){0,5}?'         # up to 5 lines of loop body
+            r'[^\n]*?'                    # text preceding the call on that line
+            + query_call
+        )
+
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
-            
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
+
             for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
-                
+
                 file_path = os.path.join(root, file)
-                self.files_scanned += 1
-                
+                self._record_scanned_file(file_path)
+
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        self.lines_analyzed += len(content.split('\n'))
-                        
+                        self._record_lines(file_path, len(content.split('\n')))
+
                         for match in query_pattern.finditer(content):
+                            # 1-based, to match how editors and every other
+                            # analyzer in this package report lines.
+                            line_no = content.count('\n', 0, match.start()) + 1
                             issues.append({
                                 'file': file_path,
                                 'location': f"{file}",
+                                # The loop bound is not statically known, so the
+                                # count stays symbolic rather than invented.
                                 'item_count': 'many',
-                                'line_range': f"{content[:match.start()].count(chr(10))}",
+                                'line_range': f"{line_no}",
                             })
                 except Exception:
                     pass
-        
+
         return issues
     
     def _scan_for_blocking_io(self, repository_path: str) -> List[Dict]:
-        """Scan for blocking I/O in hot paths."""
+        """Scan for blocking I/O in hot paths.
+
+        At most one issue per (file, operation kind). Reporting one per matching
+        pattern produced byte-identical issue dicts — a file containing both
+        `open(` and `read(` yielded two 'file_io' entries with the same location
+        and the same '0' line range, so the analyzer emitted duplicate proposals
+        that also shared a content-derived proposal_id (33 proposals, 29
+        distinct ids on flask).
+
+        The position of the first match now comes from `re.search`. The guard was
+        `content.find(pattern)`, which looks for the *regex source* ('open\\(')
+        as a literal substring; that is essentially never present, so find()
+        returned -1 and the slice became the whole file. The intended "is this
+        call inside a function" test therefore only ever asked whether the file
+        contained 'def ' anywhere.
+        """
         issues = []
-        
+
         file_patterns = [r'open\(', r'read\(', r'write\(']
         network_patterns = [r'requests\.get', r'urlopen', r'socket\.']
-        sleep_patterns = [r'time\.sleep', r'sleep\(']
-        
+
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
-            
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
+
             for file in sorted(files):
                 if not file.endswith('.py'):
                     continue
-                
+
                 file_path = os.path.join(root, file)
-                
+
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                        
-                        for pattern in file_patterns:
-                            if re.search(pattern, content):
-                                if 'def ' in content[:content.find(pattern)] and 'request' in content.lower():
-                                    issues.append({
-                                        'file': file_path,
-                                        'operation': 'file_io',
-                                        'location': f"{file}",
-                                        'line_range': '0',
-                                    })
-                        
-                        for pattern in network_patterns:
-                            if re.search(pattern, content):
-                                issues.append({
-                                    'file': file_path,
-                                    'operation': 'network',
-                                    'location': f"{file}",
-                                    'line_range': '0',
-                                })
+
+                    def first_match(patterns):
+                        """Earliest match across `patterns`, or None."""
+                        found = [
+                            m for m in (re.search(p, content) for p in patterns)
+                            if m is not None
+                        ]
+                        return min(found, key=lambda m: m.start()) if found else None
+
+                    file_match = first_match(file_patterns)
+                    if file_match is not None:
+                        preceding = content[:file_match.start()]
+                        if 'def ' in preceding and 'request' in content.lower():
+                            issues.append({
+                                'file': file_path,
+                                'operation': 'file_io',
+                                'location': f"{file}",
+                                'line_range': str(content.count('\n', 0, file_match.start()) + 1),
+                            })
+
+                    network_match = first_match(network_patterns)
+                    if network_match is not None:
+                        issues.append({
+                            'file': file_path,
+                            'operation': 'network',
+                            'location': f"{file}",
+                            'line_range': str(content.count('\n', 0, network_match.start()) + 1),
+                        })
                 except Exception:
                     pass
-        
+
         return issues
     
     def _scan_for_memory_leaks(self, repository_path: str) -> List[Dict]:
@@ -682,7 +739,7 @@ class EnhancedPerformanceAnalyzer(BaseAnalyzer):
         unbounded_pattern = re.compile(r'\.append\(|\.add\(|\.update\(')
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
             
             for file in sorted(files):
                 if not file.endswith('.py'):
@@ -717,7 +774,7 @@ class EnhancedPerformanceAnalyzer(BaseAnalyzer):
         )
         
         for root, dirs, files in os.walk(repository_path):
-            dirs[:] = [d for d in dirs if d not in {'__pycache__', '.git', 'venv'}]
+            dirs[:] = sorted([d for d in dirs if d not in {'__pycache__', '.git', 'venv'}])
             
             for file in sorted(files):
                 if not file.endswith('.py'):

@@ -5,7 +5,7 @@ Handles incoming webhooks from GitHub App.
 
 import logging
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.github_service import GitHubService
 from app.services.pr_analysis import PRAnalysisPipeline
+from app.services.change_risk_view import change_risk_view, pr_analysis_summary
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +336,30 @@ async def list_webhook_events(
     }
 
 
+@router.get("/pr-analyses")
+async def list_pr_analyses(
+    repository: Optional[str] = None,
+    limit: int = 25,
+    db: Session = Depends(get_db)
+):
+    """List recent PR analyses, newest first."""
+    limit = max(1, min(limit, 100))
+
+    query = db.query(PRAnalysis)
+    if repository:
+        query = query.filter(PRAnalysis.repository_full_name == repository)
+
+    analyses = query.order_by(PRAnalysis.created_at.desc()).limit(limit).all()
+
+    return {
+        "analyses": [pr_analysis_summary(a) for a in analyses],
+        "count": len(analyses),
+        "repositories": sorted(
+            {r[0] for r in db.query(PRAnalysis.repository_full_name).distinct().all()}
+        ),
+    }
+
+
 @router.get("/pr-analyses/{pr_analysis_id}")
 async def get_pr_analysis(
     pr_analysis_id: int,
@@ -365,5 +390,13 @@ async def get_pr_analysis(
         "started_at": pr_analysis.started_at.isoformat() if pr_analysis.started_at else None,
         "completed_at": pr_analysis.completed_at.isoformat() if pr_analysis.completed_at else None,
         "analysis_error": pr_analysis.analysis_error,
-        "ledger_run_id": pr_analysis.ledger_run_id
+        "ledger_run_id": pr_analysis.ledger_run_id,
+        "change_risk_level": pr_analysis.change_risk_level,
+        "change_risk_recommendation": pr_analysis.change_risk_recommendation,
+        "change_risk_base_revision": pr_analysis.change_risk_base_revision,
+        "change_risk_hash": pr_analysis.change_risk_hash,
+        "change_risk": change_risk_view(
+            pr_analysis.change_risk_report, pr_analysis.change_risk_error
+        ),
+        "change_risk_error": pr_analysis.change_risk_error,
     }

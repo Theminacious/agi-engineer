@@ -127,23 +127,31 @@ def test_orchestrator():
                 print(f"  Confidence: {proposal.confidence_level}%")
         
         # Verify schema
+        # validate() RETURNS a list of errors; it does not raise. The previous
+        # version wrapped it in `except ValueError` and printed on failure, so an
+        # invalid proposal was reported as "invalid" and the test still passed.
         print(f"\n✓ Schema validation:")
         for proposal in proposals:
-            try:
-                proposal.validate()
-                print(f"  ✓ {proposal.bug_class.name} proposal valid")
-            except ValueError as e:
-                print(f"  ✗ {proposal.bug_class.name} proposal invalid: {e}")
-        
+            errors = proposal.validate()
+            assert not errors, f"{proposal.bug_class.name} proposal invalid: {errors}"
+            print(f"  ✓ {proposal.bug_class.name} proposal valid")
+
         # Verify ledger conversion
         print(f"\n✓ Ledger conversion:")
         for proposal in proposals[:2]:
             event = proposal.to_ledger_event()
+            assert event.get("event_type") == "INTELLIGENCE_PROPOSAL"
+            assert event.get("payload"), "Ledger event carries no payload"
             print(f"  Event type: {event.get('event_type')}")
-            print(f"  Data fields: {list(event.get('data', {}).keys())}")
-        
+            print(f"  Payload fields: {list(event.get('payload', {}).keys())}")
+
+        # The orchestrator is supposed to produce findings for this fixture repo.
+        # Without this the whole test passes on an empty result, which is how it
+        # would look if every analyzer silently stopped running.
+        assert proposals, "Orchestrator returned no proposals for the test repo"
+        assert orchestrator.run_id, "Orchestrator did not record a run_id"
+
         print(f"\n✓ All tests passed!")
-        return True
         
     finally:
         # Cleanup

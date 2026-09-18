@@ -135,6 +135,7 @@ class CodeGraphBuilder:
                     "decorators": func.decorators,
                     "is_async": func.is_async,
                     "docstring": func.docstring,
+                    "end_line": func.end_line_number,
                 },
             ))
             graph.add_edge(Edge(
@@ -156,6 +157,7 @@ class CodeGraphBuilder:
                     "bases": cls.bases,
                     "decorators": cls.decorators,
                     "docstring": cls.docstring,
+                    "end_line": cls.end_line_number,
                 },
             ))
             graph.add_edge(Edge(
@@ -187,6 +189,7 @@ class CodeGraphBuilder:
                         "decorators": method.decorators,
                         "is_async": method.is_async,
                         "docstring": method.docstring,
+                        "end_line": method.end_line_number,
                     },
                 ))
                 graph.add_edge(Edge(
