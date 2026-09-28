@@ -36,6 +36,10 @@ from app.services.finding_context import build_finding_contexts
 from app.services.change_risk_engine import ChangeRiskEngine
 from app.services.verification_engine import VerificationEngine
 from app.services.verification_execution import VerificationExecutor
+from app.services.verification_execution import (
+    behavioral_bundle_from_command_result,
+    compare_behavioral_results,
+)
 from app.services.baseline_comparison import BaselineComparisonService
 
 # Agent imports (orchestrator, fix generation)
@@ -723,6 +727,7 @@ class PRAnalysisPipeline:
                 impact=impact,
                 risk=assessment,
                 contexts=self._last_finding_contexts,
+                capture_node_results=True,
             )
             baseline = BaselineComparisonService().compare(
                 repo_path=repo_path,
@@ -743,6 +748,35 @@ class PRAnalysisPipeline:
                 comparison_findings_before=baseline.findings_before,
                 comparison_findings_after=self._last_finding_rows,
             )
+            relevant_tests = list(execution_evidence.relevant_tests or [])
+            if relevant_tests:
+                base_revision = self._base_revision(pr_analysis)
+                pytest_command = next(
+                    (
+                        cmd
+                        for cmd in (execution_evidence.command_results or [])
+                        if cmd.get("check") == "pytest"
+                    ),
+                    None,
+                )
+                target_bundle = behavioral_bundle_from_command_result(
+                    pytest_command, revision=pr_analysis.head_sha
+                )
+                base_bundle = BaselineComparisonService().compare_behavior(
+                    repo_path=repo_path,
+                    base_revision=base_revision,
+                    pytest_targets=relevant_tests,
+                    target_revision=pr_analysis.head_sha,
+                )
+                behavioral = compare_behavioral_results(
+                    base_bundle,
+                    target_bundle,
+                    test_files=relevant_tests,
+                    changed_files=list(impact.changed_files),
+                    changed_symbols=list(impact.directly_affected_symbols),
+                    selection_provenance=execution_evidence.relevant_test_selection or "",
+                )
+                execution_evidence = replace(execution_evidence, behavioral=behavioral)
             proof = VerificationEngine().assess(
                 impact,
                 self._last_finding_contexts,

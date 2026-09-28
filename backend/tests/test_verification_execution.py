@@ -170,3 +170,376 @@ def test_command_order_and_identity_are_stable(tmp_path):
         tuple(item[field] for field in stable_fields) for item in second.command_results
     ]
     assert [item["check"] for item in first.command_results] == ["javascript_tests", "pytest", "ruff"]
+
+
+# ---------------------------------------------------------------------------
+# deterministic evidence-backed source-to-test mapping (spec: option C)
+# ---------------------------------------------------------------------------
+
+import os
+import sys
+
+from app.services import verification_execution  # noqa: E402
+from app.services.verification_execution import _command_env, _test_targets  # noqa: E402
+
+SHIM = (
+    "import os\n"
+    "import sys\n"
+    "sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))\n"
+)
+
+
+def _mirror_repo(tmp_path: Path, test_path: str, body: str = "def test_mirror():\n    assert 1 == 1\n") -> Path:
+    test_file = tmp_path / test_path
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text(body)
+    return tmp_path
+
+
+def _package_repo(tmp_path: Path, test_body: str) -> Path:
+    """Repo with a real importable package src/service/client.py (TEST 1/5/6 shape)."""
+    pkg = tmp_path / "src" / "service"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    (pkg / "client.py").write_text("VALUE = 1\n")
+    test_file = tmp_path / "tests" / "service" / "test_client.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(test_body)
+    return tmp_path
+
+
+# --- selection rules (unit level, via _test_targets) ------------------------
+
+def test_selected_when_test_imports_changed_module(tmp_path):
+    """TEST A: starlette/routing.py + test importing starlette.routing -> selected."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_routing.py", "from starlette.routing import Route\n"
+    )
+    (repository / "starlette").mkdir()
+    (repository / "starlette" / "routing.py").write_text("")
+    assert _test_targets(repository, ["starlette/routing.py"]) == ["tests/test_routing.py"]
+
+
+def test_same_stem_foreign_import_is_not_selected(tmp_path):
+    """TEST B: benchmarks/_utils.py vs tests/test__utils.py importing starlette._utils."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test__utils.py", "from starlette._utils import get_route_path\n"
+    )
+    (repository / "benchmarks").mkdir()
+    (repository / "benchmarks" / "_utils.py").write_text("")
+    assert _test_targets(repository, ["benchmarks/_utils.py"]) == []
+
+
+def test_same_stem_example_collision_is_not_selected(tmp_path):
+    """TEST C: examples/termui/termui.py vs tests/test_termui.py of the core package."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_termui.py", "import click\nfrom click._compat import WIN\n"
+    )
+    (repository / "examples" / "termui").mkdir(parents=True)
+    (repository / "examples" / "termui" / "termui.py").write_text("")
+    assert _test_targets(repository, ["examples/termui/termui.py"]) == []
+
+
+def test_package_namespace_import_alone_is_not_evidence(tmp_path):
+    """TEST D: flask/config.py + tests/test_config.py with only `import flask`."""
+    repository = _mirror_repo(tmp_path, "tests/test_config.py", "import flask\n")
+    (repository / "src" / "flask").mkdir(parents=True)
+    (repository / "src" / "flask" / "config.py").write_text("")
+    assert _test_targets(repository, ["src/flask/config.py"]) == []
+
+
+def test_explicit_module_import_is_evidence(tmp_path):
+    """TEST E: flask/config.py + test importing flask.config -> selected."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_config.py", "from flask.config import Config\n"
+    )
+    (repository / "src" / "flask").mkdir(parents=True)
+    (repository / "src" / "flask" / "config.py").write_text("")
+    assert _test_targets(repository, ["src/flask/config.py"]) == ["tests/test_config.py"]
+
+
+def test_from_parent_import_of_submodule_is_evidence(tmp_path):
+    """TEST F: `from starlette import routing` -> selected for starlette/routing.py."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_routing.py", "from starlette import routing\n"
+    )
+    (repository / "starlette").mkdir()
+    (repository / "starlette" / "routing.py").write_text("")
+    assert _test_targets(repository, ["starlette/routing.py"]) == ["tests/test_routing.py"]
+
+
+def test_from_parent_import_of_other_name_is_not_evidence(tmp_path):
+    """`from service import other` does not prove service/client.py."""
+    repository = _mirror_repo(
+        tmp_path, "tests/service/test_client.py", "from service import other\n"
+    )
+    (repository / "src" / "service").mkdir(parents=True)
+    (repository / "src" / "service" / "client.py").write_text("")
+    assert _test_targets(repository, ["src/service/client.py"]) == []
+
+
+def test_ancestor_package_import_is_not_evidence(tmp_path):
+    """TEST G: `import starlette` does not prove starlette/routing.py."""
+    repository = _mirror_repo(tmp_path, "tests/test_routing.py", "import starlette\n")
+    (repository / "starlette").mkdir()
+    (repository / "starlette" / "routing.py").write_text("")
+    assert _test_targets(repository, ["starlette/routing.py"]) == []
+
+
+def test_import_as_alias_is_evidence(tmp_path):
+    """`import starlette.routing as routing` -> selected."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_routing.py", "import starlette.routing as routing\n"
+    )
+    (repository / "starlette").mkdir()
+    (repository / "starlette" / "routing.py").write_text("")
+    assert _test_targets(repository, ["starlette/routing.py"]) == ["tests/test_routing.py"]
+
+
+def test_unparsable_candidate_is_rejected(tmp_path):
+    """AST parse failure fabricates no relationship; candidate is conservatively rejected."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_routing.py", "def broken(:\n"
+    )
+    (repository / "starlette").mkdir()
+    (repository / "starlette" / "routing.py").write_text("")
+    assert _test_targets(repository, ["starlette/routing.py"]) == []
+
+
+def test_all_evidenced_candidates_are_selected_without_ranking(tmp_path):
+    """Multiple deterministically-related candidates are all selected, never ranked."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_routing.py", "from starlette.routing import Route\n"
+    )
+    nested = repository / "tests" / "starlette"
+    nested.mkdir()
+    (nested / "test_routing.py").write_text("from starlette.routing import Route\n")
+    (repository / "starlette").mkdir()
+    (repository / "starlette" / "routing.py").write_text("")
+    assert _test_targets(repository, ["starlette/routing.py"]) == [
+        "tests/starlette/test_routing.py",
+        "tests/test_routing.py",
+    ]
+
+
+def test_relative_import_is_not_evidence(tmp_path):
+    """Relative imports are not resolved (conservative under-approximation)."""
+    repository = _mirror_repo(
+        tmp_path, "tests/test_routing.py", "from .routing import Route\n"
+    )
+    (repository / "starlette").mkdir()
+    (repository / "starlette" / "routing.py").write_text("")
+    assert _test_targets(repository, ["starlette/routing.py"]) == []
+
+
+# --- executor-level integration ---------------------------------------------
+
+def test_mirror_source_to_test_is_selected_and_executed(tmp_path):
+    """TEST 1 + TEST 5: evidence-backed mirror target is selected and executed."""
+    repository = _package_repo(
+        tmp_path,
+        SHIM + "import service.client\n\ndef test_mirror():\n    assert service.client.VALUE == 1\n",
+    )
+    result = VerificationExecutor(timeout_seconds=30).execute(
+        str(repository), "target", _impact(("src/service/client.py",)), _risk(), []
+    )
+
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is True
+    assert command["status"] == "PASSED"
+    assert command["exit_code"] == 0
+    assert command["executed_test_count"] == 1
+    assert result.relevant_tests == ["tests/service/test_client.py"]
+    assert result.relevant_test_selection == "deterministic_changed_test_files"
+    assert result.test_execution_result == "passed"
+
+
+def test_no_deterministic_mapping_stays_unavailable(tmp_path):
+    """TEST 2 + TEST I: no mirror, no evidence -> nothing selected, pytest not invoked."""
+    repository = _mirror_repo(tmp_path, "tests/test_other.py")
+    result = VerificationExecutor().execute(
+        str(repository), "target", _impact(("src/service.py",)), _risk(), []
+    )
+
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is False
+    assert command["reason"] == "relevant_test_selection=unavailable"
+    assert result.relevant_test_selection == "unavailable"
+    assert result.test_execution_result is None
+
+
+def test_existing_candidate_without_evidence_is_not_executed(tmp_path):
+    """Candidate exists, same stem, but the test never imports the module."""
+    repository = _mirror_repo(tmp_path, "tests/service/test_client.py")
+    result = VerificationExecutor().execute(
+        str(repository), "target", _impact(("src/service/client.py",)), _risk(), []
+    )
+
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is False
+    assert command["reason"] == "relevant_test_selection=unavailable"
+    assert result.relevant_test_selection == "unavailable"
+
+
+def test_changed_test_file_behavior_is_unchanged(tmp_path):
+    """TEST 4 + TEST H: changed test files keep the pre-existing selection path."""
+    repository = _repo(tmp_path)
+    result = VerificationExecutor(timeout_seconds=30).execute(
+        str(repository), "target", _impact(("tests/test_sample.py",)), _risk(), []
+    )
+
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is True
+    assert command["status"] == "PASSED"
+    assert result.relevant_tests == ["tests/test_sample.py"]
+
+
+def test_mirror_target_failure_is_structured_evidence(tmp_path):
+    """TEST 6: a failing evidence-backed mirror target produces honest failed evidence."""
+    repository = _package_repo(
+        tmp_path,
+        SHIM + "import service.client\n\ndef test_mirror():\n    assert False\n",
+    )
+    result = VerificationExecutor(timeout_seconds=30).execute(
+        str(repository), "target", _impact(("src/service/client.py",)), _risk(), []
+    )
+
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is True
+    assert command["status"] == "FAILED"
+    assert result.test_execution_result == "failed"
+
+
+def test_pytest_unavailable_with_selected_target_is_not_executed(tmp_path):
+    """TEST 7: selection succeeds but pytest is missing -> safe NOT_EXECUTED."""
+    repository = _mirror_repo(
+        tmp_path, "tests/service/test_client.py", "import service.client\n"
+    )
+    (repository / "src" / "service").mkdir(parents=True)
+    (repository / "src" / "service" / "client.py").write_text("")
+    with patch(
+        "app.services.verification_execution.importlib.util.find_spec", return_value=None
+    ):
+        result = VerificationExecutor().execute(
+            str(repository), "target", _impact(("src/service/client.py",)), _risk(), []
+        )
+
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is False
+    assert "pytest is unavailable" in command["reason"]
+    # the selection itself is still deterministic and recorded
+    assert result.relevant_test_selection == "deterministic_changed_test_files"
+    assert result.test_execution_result is None
+
+
+# ---------------------------------------------------------------------------
+# subprocess-local PYTHONPATH for src-layout import integrity
+# ---------------------------------------------------------------------------
+
+from app.services.verification_execution import _command_env  # noqa: E402
+
+
+def test_flat_repository_environment_unchanged(tmp_path):
+    """TEST 1: no src directory -> PYTHONPATH behavior is unchanged."""
+    base = _command_env(tmp_path, include_src=False)
+    flat = _command_env(tmp_path, include_src=True)  # no src/ exists
+    assert base.get("PYTHONPATH") == flat.get("PYTHONPATH")
+    assert "PYTHONPATH" not in flat or "src" not in flat["PYTHONPATH"]
+
+
+def test_src_layout_prepends_absolute_src(tmp_path):
+    """TEST 2: repo/src exists -> subprocess env contains the absolute src dir."""
+    (tmp_path / "src" / "example_pkg").mkdir(parents=True)
+    env = _command_env(tmp_path, include_src=True)
+    assert env["PYTHONPATH"] == str((tmp_path / "src").resolve())
+
+
+def test_existing_pythonpath_is_preserved_and_prepended(tmp_path, monkeypatch):
+    """TEST 3: existing PYTHONPATH entries remain; src is prepended, not replaced."""
+    (tmp_path / "src").mkdir()
+    monkeypatch.setenv("PYTHONPATH", "/existing/entry")
+    env = _command_env(tmp_path, include_src=True)
+    assert env["PYTHONPATH"] == f"{(tmp_path / 'src').resolve()}{os.pathsep}/existing/entry"
+
+
+def test_missing_src_directory_is_not_added(tmp_path):
+    """TEST 4: a nonexistent src path is never added."""
+    assert not (tmp_path / "src").exists()
+    env = _command_env(tmp_path, include_src=True)
+    assert "PYTHONPATH" not in env or str(tmp_path / "src") not in env["PYTHONPATH"]
+
+
+def test_pytest_command_itself_is_unchanged(tmp_path):
+    """TEST 5: the pytest argv is identical with the src adjustment in place."""
+    (tmp_path / "src").mkdir()
+    repository = _mirror_repo(tmp_path, "tests/test_sample.py")
+    result = VerificationExecutor(timeout_seconds=30).execute(
+        str(repository), "target", _impact(("tests/test_sample.py",)), _risk(), []
+    )
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["command"] == [
+        sys.executable, "-m", "pytest", "--color=no", "tests/test_sample.py",
+    ]
+
+
+def test_ruff_environment_is_unchanged(tmp_path):
+    """TEST 6: ruff does not receive the src PYTHONPATH adjustment."""
+    (tmp_path / "src").mkdir()
+    repository = _repo(tmp_path, ruff=True)
+    captured = []
+
+    real_run = verification_execution.subprocess.run
+
+    def recording_run(*args, **kwargs):
+        captured.append(kwargs.get("env"))
+        return real_run(*args, **kwargs)
+
+    with patch.object(verification_execution.subprocess, "run", side_effect=recording_run):
+        VerificationExecutor(timeout_seconds=30).execute(
+            str(repository), "target", _impact(("service.py",)), _risk(), []
+        )
+
+    assert len(captured) == 1  # only the ruff command ran
+    src_path = str((tmp_path / "src").resolve())
+    assert src_path not in (captured[0].get("PYTHONPATH") or "")
+
+
+def test_environment_modification_is_subprocess_local(tmp_path, monkeypatch):
+    """TEST 7: os.environ is never mutated; the env dict is a private copy."""
+    (tmp_path / "src").mkdir()
+    monkeypatch.setenv("PYTHONPATH", "/sentinel")
+    before = dict(os.environ)
+    env = _command_env(tmp_path, include_src=True)
+    assert env is not os.environ
+    assert env["PYTHONPATH"].startswith(str((tmp_path / "src").resolve()))
+    assert os.environ == before
+    assert os.environ["PYTHONPATH"] == "/sentinel"
+
+
+def test_src_layout_test_executes_the_checkout_package(tmp_path):
+    """TEST 8: integration — pytest imports the package from temp_repo/src, not elsewhere.
+
+    The executed test asserts example_pkg.__file__ resolves inside temp_repo/src,
+    so a PASSED result proves import integrity, not merely a PYTHONPATH string.
+    """
+    pkg_dir = tmp_path / "src" / "example_pkg"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "__init__.py").write_text("PACKAGE_DIR = __file__\n")
+    test_file = tmp_path / "tests" / "test_import.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        "import example_pkg\n"
+        "\n"
+        "def test_import_resolves_inside_checkout_src():\n"
+        f"    assert example_pkg.__file__.startswith({str((tmp_path / 'src').resolve())!r})\n"
+    )
+    result = VerificationExecutor(timeout_seconds=30).execute(
+        str(tmp_path), "target", _impact(("tests/test_import.py",)), _risk(), []
+    )
+
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is True
+    assert command["status"] == "PASSED"
+    assert command["exit_code"] == 0
+    assert command["executed_test_count"] == 1
+    assert result.test_execution_result == "passed"

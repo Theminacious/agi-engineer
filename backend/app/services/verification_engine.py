@@ -45,6 +45,47 @@ class VerificationEvidence:
     baseline_error: Optional[str] = None
     comparison_findings_before: Optional[Sequence[Any]] = None
     comparison_findings_after: Optional[Sequence[Any]] = None
+    behavioral: Optional[Sequence["BehavioralTestComparison"]] = None
+
+
+@dataclass(frozen=True)
+class BehavioralTestComparison:
+    """Deterministic base-vs-target comparison for one selected test.
+
+    Node statuses are ``passed | failed | skipped | unavailable``. A side that
+    could not be executed (infrastructure failure, timeout, missing file,
+    unparsable results) is ``unavailable`` — never coerced to passed or
+    failed. ``regression`` is True only when the same test node passed on the
+    base revision and failed on the target revision; any unavailable element
+    yields ``None`` (unknown), never a guessed verdict.
+    """
+
+    test_file: Optional[str]
+    test_node_id: Optional[str]
+    baseline_status: str
+    target_status: str
+    regression: Optional[bool]
+    comparison_status: str  # REGRESSION | PRE_EXISTING | CONSISTENT | IMPROVED | UNKNOWN
+    changed_files: List[str] = field(default_factory=list)
+    changed_symbols: List[str] = field(default_factory=list)
+    selection_provenance: str = ""
+    baseline_execution: Dict[str, Any] = field(default_factory=dict)
+    target_execution: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "test_file": self.test_file,
+            "test_node_id": self.test_node_id,
+            "baseline_status": self.baseline_status,
+            "target_status": self.target_status,
+            "regression": self.regression,
+            "comparison_status": self.comparison_status,
+            "changed_files": list(self.changed_files),
+            "changed_symbols": list(self.changed_symbols),
+            "selection_provenance": self.selection_provenance,
+            "baseline_execution": self.baseline_execution,
+            "target_execution": self.target_execution,
+        }
 
 
 def _sorted_strings(values: Optional[Iterable[str]]) -> Optional[List[str]]:
@@ -171,6 +212,8 @@ class VerificationProof:
     completed_checks: List[str] = field(default_factory=list)
     missing_checks: List[str] = field(default_factory=list)
     verification_confidence: str = "unknown"
+    behavioral_regressions: Optional[List[Dict[str, Any]]] = None
+    behavioral_comparison_status: Optional[str] = None
     reasons: List[str] = field(default_factory=list)
     deterministic_hash: str = ""
 
@@ -200,6 +243,8 @@ class VerificationProof:
             "completed_checks": self.completed_checks,
             "missing_checks": self.missing_checks,
             "verification_confidence": self.verification_confidence,
+            "behavioral_regressions": self.behavioral_regressions,
+            "behavioral_comparison_status": self.behavioral_comparison_status,
             "reasons": self.reasons,
             "deterministic_hash": self.deterministic_hash,
         }
@@ -353,6 +398,32 @@ class VerificationEngine:
         if missing_checks:
             reasons.append("missing checks: " + ", ".join(missing_checks))
 
+        # Behavioral regression evidence: pass-through only. It never changes
+        # the state machine, required checks, or risk scoring; it explains
+        # WHICH target-side failures are mutation-attributable.
+        behavioral_regressions: Optional[List[Dict[str, Any]]] = None
+        behavioral_comparison_status: Optional[str] = None
+        if evidence.behavioral is not None:
+            behavioral_regressions = [
+                comparison.to_dict()
+                for comparison in evidence.behavioral
+                if comparison.regression is True
+            ]
+            if any(c.comparison_status == "REGRESSION" for c in evidence.behavioral):
+                behavioral_comparison_status = "REGRESSIONS_FOUND"
+            elif all(
+                c.comparison_status in ("CONSISTENT", "PRE_EXISTING", "IMPROVED")
+                for c in evidence.behavioral
+            ):
+                behavioral_comparison_status = "NO_REGRESSIONS"
+            else:
+                behavioral_comparison_status = "UNKNOWN"
+            if behavioral_regressions:
+                reasons.append(
+                    f"behavioral regression evidence: {len(behavioral_regressions)} "
+                    f"test(s) passed on the base revision and failed on the target revision"
+                )
+
         proof = VerificationProof(
             state=state,
             tests_discovered=tests_discovered,
@@ -388,6 +459,8 @@ class VerificationEngine:
             completed_checks=completed_checks,
             missing_checks=missing_checks,
             verification_confidence=confidence,
+            behavioral_regressions=behavioral_regressions,
+            behavioral_comparison_status=behavioral_comparison_status,
             reasons=sorted(set(reasons)),
         )
         return proof.finalize()
