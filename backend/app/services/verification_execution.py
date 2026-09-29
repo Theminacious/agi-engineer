@@ -164,36 +164,119 @@ def _has_static_import_evidence(test_file: Path, module: str) -> bool:
 
 
 def _test_targets(root: Path, changed_files: Iterable[str]) -> List[str]:
-    """Select changed test files plus evidence-backed conventional mirrors.
+    return sorted({record.test_file for record in _select_tests(root, changed_files)})
 
-    A source file contributes a pytest target only for a conventional mirror
-    candidate that (a) exists in the discovered test-file set and (b) carries
-    deterministic static import evidence that the test imports the changed
-    module. Existence and stem similarity alone establish no relationship:
-    without import evidence nothing is selected, nothing is guessed, and
-    pytest does not run. Every candidate is judged independently; multiple
-    deterministically-related candidates are all selected, never ranked.
-    """
+
+@dataclass(frozen=True)
+class TestSelectionEvidence:
+    test_file: str
+    changed_file: str
+    changed_module: Optional[str]
+    evidence: str
+    name_mirror: bool
+    symbols: Tuple[str, ...] = ()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "test_file": self.test_file,
+            "changed_file": self.changed_file,
+            "changed_module": self.changed_module,
+            "evidence": self.evidence,
+            "name_mirror": self.name_mirror,
+            "symbols": list(self.symbols),
+        }
+
+
+def _normalize_repo_path(path: str) -> str:
+    normalized = str(path).replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def _changed_symbols_by_file(changed_symbols: Iterable[Any]) -> Dict[str, Tuple[str, ...]]:
+    grouped: Dict[str, set] = {}
+    for symbol in changed_symbols or ():
+        file_path = getattr(symbol, "file_path", None)
+        name = getattr(symbol, "name", None)
+        if not file_path or not name:
+            continue
+        grouped.setdefault(_normalize_repo_path(file_path), set()).add(
+            str(name).split(".")[-1]
+        )
+    return {path: tuple(sorted(names)) for path, names in grouped.items()}
+
+
+def _referenced_symbols(tree: ast.AST, short_names: Sequence[str]) -> Tuple[str, ...]:
+    if not short_names:
+        return ()
+    wanted = set(short_names)
+    found: set = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in wanted:
+            found.add(node.id)
+        elif isinstance(node, ast.Attribute) and node.attr in wanted:
+            found.add(node.attr)
+    return tuple(sorted(found))
+
+
+def _select_tests(
+    root: Path,
+    changed_files: Iterable[str],
+    changed_symbols: Iterable[Any] = (),
+) -> List[TestSelectionEvidence]:
     known = set(_pytest_files(root))
-    targets = set()
+    symbols_by_file = _changed_symbols_by_file(changed_symbols)
+    parse_cache: Dict[str, Optional[ast.AST]] = {}
+
+    def _tree(candidate: str) -> Optional[ast.AST]:
+        if candidate not in parse_cache:
+            try:
+                parse_cache[candidate] = ast.parse(
+                    (root / candidate).read_text(errors="replace")
+                )
+            except (OSError, SyntaxError, ValueError):
+                parse_cache[candidate] = None
+        return parse_cache[candidate]
+
+    selections: Dict[Tuple[str, str], TestSelectionEvidence] = {}
     for path in changed_files:
-        normalized = str(path).replace("\\", "/")
-        while normalized.startswith("./"):
-            normalized = normalized[2:]
+        normalized = _normalize_repo_path(str(path))
         if normalized in known:
-            targets.add(normalized)
+            selections[(normalized, normalized)] = TestSelectionEvidence(
+                test_file=normalized, changed_file=normalized,
+                changed_module=None, evidence="CHANGED_TEST", name_mirror=False,
+            )
             continue
         module = _module_dotted_path(
             normalized[len("src/"):] if normalized.startswith("src/") else normalized
         )
         if module is None:
             continue
-        for candidate in sorted(_conventional_test_candidates(normalized)):
-            if candidate not in known:
+        mirrors = _conventional_test_candidates(normalized)
+        short_names = symbols_by_file.get(normalized, ())
+        for candidate in sorted(known):
+            if not _has_static_import_evidence(root / candidate, module):
                 continue
-            if _has_static_import_evidence(root / candidate, module):
-                targets.add(candidate)
-    return sorted(targets)
+            symbols: Tuple[str, ...] = ()
+            if short_names:
+                tree = _tree(candidate)
+                if tree is not None:
+                    symbols = _referenced_symbols(tree, short_names)
+            evidence = "DIRECT_IMPORT_AND_SYMBOL" if symbols else "DIRECT_IMPORT"
+            selections[(normalized, candidate)] = TestSelectionEvidence(
+                test_file=candidate, changed_file=normalized,
+                changed_module=module, evidence=evidence,
+                name_mirror=candidate in mirrors, symbols=symbols,
+            )
+    return [selections[key] for key in sorted(selections)]
+
+
+def format_selection_provenance(records: Sequence[TestSelectionEvidence]) -> str:
+    if not records:
+        return "unavailable"
+    payload = [record.to_dict() for record in records]
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
 def _parse_pytest_counts(output: str) -> Tuple[Optional[int], Optional[int]]:
@@ -544,7 +627,9 @@ class VerificationExecutor:
         results: List[VerificationCommandResult] = []
 
         pytest_files = _pytest_files(root)
-        pytest_targets = _test_targets(root, changed_files)
+        selection = _select_tests(root, changed_files, impact.changed_symbols)
+        pytest_targets = sorted({record.test_file for record in selection})
+        selection_provenance = format_selection_provenance(selection)
         pytest_discovered = bool(pytest_files or _has_pytest_config(root))
         if pytest_discovered:
             pytest_command = [sys.executable, "-m", "pytest", "--color=no"] + pytest_targets
@@ -660,6 +745,7 @@ class VerificationExecutor:
             relevant_test_selection=(
                 "deterministic_changed_test_files" if pytest_targets else "unavailable"
             ),
+            test_selection_provenance=selection_provenance if pytest_targets else None,
         )
 
     def _run(

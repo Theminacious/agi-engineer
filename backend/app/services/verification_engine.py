@@ -46,6 +46,7 @@ class VerificationEvidence:
     comparison_findings_before: Optional[Sequence[Any]] = None
     comparison_findings_after: Optional[Sequence[Any]] = None
     behavioral: Optional[Sequence["BehavioralTestComparison"]] = None
+    test_selection_provenance: Optional[str] = None
 
 
 @dataclass(frozen=True)

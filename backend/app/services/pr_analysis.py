@@ -774,7 +774,11 @@ class PRAnalysisPipeline:
                     test_files=relevant_tests,
                     changed_files=list(impact.changed_files),
                     changed_symbols=list(impact.directly_affected_symbols),
-                    selection_provenance=execution_evidence.relevant_test_selection or "",
+                    selection_provenance=(
+                        execution_evidence.test_selection_provenance
+                        or execution_evidence.relevant_test_selection
+                        or ""
+                    ),
                 )
                 execution_evidence = replace(execution_evidence, behavioral=behavioral)
             proof = VerificationEngine().assess(

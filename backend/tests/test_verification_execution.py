@@ -332,6 +332,169 @@ def test_relative_import_is_not_evidence(tmp_path):
     assert _test_targets(repository, ["starlette/routing.py"]) == []
 
 
+# --- selection V2: non-mirror recall + provenance ---------------------------
+
+def test_non_mirror_test_with_direct_import_is_selected(tmp_path):
+    repository = _mirror_repo(
+        tmp_path, "tests/test_requests.py", "from requests.models import Response\n"
+    )
+    (repository / "src" / "requests").mkdir(parents=True)
+    (repository / "src" / "requests" / "models.py").write_text("")
+    assert _test_targets(repository, ["src/requests/models.py"]) == [
+        "tests/test_requests.py"
+    ]
+
+
+def test_mirror_test_with_direct_import_is_still_selected(tmp_path):
+    repository = _mirror_repo(
+        tmp_path, "tests/test_models.py", "from requests.models import Response\n"
+    )
+    (repository / "src" / "requests").mkdir(parents=True)
+    (repository / "src" / "requests" / "models.py").write_text("")
+    assert _test_targets(repository, ["src/requests/models.py"]) == [
+        "tests/test_models.py"
+    ]
+
+
+def test_same_stem_unrelated_test_is_not_selected(tmp_path):
+    repository = _mirror_repo(
+        tmp_path, "tests/test_models.py", "from other.models import Thing\n"
+    )
+    (repository / "src" / "requests").mkdir(parents=True)
+    (repository / "src" / "requests" / "models.py").write_text("")
+    assert _test_targets(repository, ["src/requests/models.py"]) == []
+
+
+def test_package_import_only_is_not_selected_v2(tmp_path):
+    repository = _mirror_repo(
+        tmp_path,
+        "tests/test_status.py",
+        "import httpx\n\ndef test_codes():\n    assert httpx.codes.OK == 200\n",
+    )
+    (repository / "httpx").mkdir()
+    (repository / "httpx" / "_status_codes.py").write_text("")
+    assert _test_targets(repository, ["httpx/_status_codes.py"]) == []
+
+
+def test_urllib3_style_test_directory_is_selected(tmp_path):
+    repository = _mirror_repo(
+        tmp_path,
+        "test/test_connectionpool.py",
+        "from urllib3.connectionpool import HTTPConnectionPool\n",
+    )
+    (repository / "src" / "urllib3").mkdir(parents=True)
+    (repository / "src" / "urllib3" / "connectionpool.py").write_text("")
+    assert _test_targets(repository, ["src/urllib3/connectionpool.py"]) == [
+        "test/test_connectionpool.py"
+    ]
+
+
+def test_multiple_evidenced_non_mirror_candidates_all_selected(tmp_path):
+    repository = _mirror_repo(
+        tmp_path, "tests/test_context.py", "from click.core import Context\n"
+    )
+    (repository / "tests" / "test_commands.py").write_text(
+        "from click.core import Command\n"
+    )
+    (repository / "src" / "click").mkdir(parents=True)
+    (repository / "src" / "click" / "core.py").write_text("")
+    assert _test_targets(repository, ["src/click/core.py"]) == [
+        "tests/test_commands.py",
+        "tests/test_context.py",
+    ]
+
+
+def test_changed_symbol_reference_strengthens_provenance(tmp_path):
+    from app.models.change_impact import ChangedSymbol
+    from app.services.verification_execution import _select_tests
+
+    repository = _mirror_repo(
+        tmp_path,
+        "tests/test_requests.py",
+        "from requests.models import Response\n\n"
+        "def test_it():\n    Response().raise_for_status()\n",
+    )
+    (repository / "src" / "requests").mkdir(parents=True)
+    (repository / "src" / "requests" / "models.py").write_text("")
+    symbol = ChangedSymbol(
+        node_id="requests.models.Response.raise_for_status",
+        node_type="method",
+        file_path="src/requests/models.py",
+        name="Response.raise_for_status",
+        change_kind="modified",
+    )
+    records = _select_tests(
+        repository, ["src/requests/models.py"], [symbol]
+    )
+    assert len(records) == 1
+    assert records[0].test_file == "tests/test_requests.py"
+    assert records[0].evidence == "DIRECT_IMPORT_AND_SYMBOL"
+    assert records[0].symbols == ("raise_for_status",)
+
+
+def test_unrelated_symbol_does_not_establish_symbol_evidence(tmp_path):
+    from app.models.change_impact import ChangedSymbol
+    from app.services.verification_execution import _select_tests
+
+    repository = _mirror_repo(
+        tmp_path,
+        "tests/test_requests.py",
+        "from requests.models import Response\n\n"
+        "def test_it():\n    Response().json()\n",
+    )
+    (repository / "src" / "requests").mkdir(parents=True)
+    (repository / "src" / "requests" / "models.py").write_text("")
+    symbol = ChangedSymbol(
+        node_id="requests.models.Response.raise_for_status",
+        node_type="method",
+        file_path="src/requests/models.py",
+        name="Response.raise_for_status",
+        change_kind="modified",
+    )
+    records = _select_tests(
+        repository, ["src/requests/models.py"], [symbol]
+    )
+    assert len(records) == 1
+    assert records[0].evidence == "DIRECT_IMPORT"
+    assert records[0].symbols == ()
+
+
+def test_no_evidence_yields_no_selection_and_unavailable_provenance(tmp_path):
+    from app.services.verification_execution import (
+        _select_tests, format_selection_provenance,
+    )
+
+    repository = _mirror_repo(tmp_path, "tests/test_config.py", "import flask\n")
+    (repository / "src" / "flask").mkdir(parents=True)
+    (repository / "src" / "flask" / "config.py").write_text("")
+    records = _select_tests(repository, ["src/flask/config.py"])
+    assert records == []
+    assert format_selection_provenance(records) == "unavailable"
+
+
+def test_selection_provenance_is_deterministic_across_runs(tmp_path):
+    from app.services.verification_execution import (
+        _select_tests, format_selection_provenance,
+    )
+
+    repository = _mirror_repo(
+        tmp_path, "tests/test_context.py", "from click.core import Context\n"
+    )
+    (repository / "tests" / "test_commands.py").write_text(
+        "from click.core import Command\n"
+    )
+    (repository / "src" / "click").mkdir(parents=True)
+    (repository / "src" / "click" / "core.py").write_text("")
+    first = format_selection_provenance(
+        _select_tests(repository, ["src/click/core.py"])
+    )
+    second = format_selection_provenance(
+        _select_tests(repository, ["src/click/core.py"])
+    )
+    assert first == second
+    assert '"evidence":"DIRECT_IMPORT"' in first
+
+
 # --- executor-level integration ---------------------------------------------
 
 def test_mirror_source_to_test_is_selected_and_executed(tmp_path):
