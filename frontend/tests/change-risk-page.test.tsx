@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 import IntegrationsPage from '@/app/integrations/page'
-import type { ChangeRisk } from '@/lib/prAnalyses'
+import type { BehavioralRecord, ChangeRisk, ProofIntegrityRecord } from '@/lib/prAnalyses'
 
 const BASE_SHA = 'b'.repeat(40)
 const HEAD_SHA = '3e36ac6b1d33fbec851347622e9ba5d9f55efd49'
@@ -153,6 +153,8 @@ function changeRisk(level: string, recommendation: string) {
       ],
       relevant_test_selection: 'unavailable',
       reasons: ['Static analysis failed.', 'Tests were not executed.'],
+      behavioral: null as BehavioralRecord | null,
+      proof_integrity: null as ProofIntegrityRecord | null,
     },
     baseline: {
       base_revision: BASE_SHA,
@@ -574,5 +576,176 @@ describe('Change Risk tab', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Change risk level CRITICAL')).toBeTruthy(),
     )
+  })
+
+  it('renders VERIFIED with a distinct verification badge', async () => {
+    const body = detail('low', 'no_review_required')
+    body.change_risk.verification.state = 'verified'
+    body.change_risk.verification.confidence = 'high'
+    mockRoutes({
+      list: {
+        analyses: [summary({ change_risk_level: 'low' })],
+        count: 1,
+        repositories: ['acme/payments'],
+      },
+      detail: body,
+    })
+
+    await openRiskTab()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Verification state VERIFIED')).toBeTruthy(),
+    )
+    expect(screen.queryByLabelText('Verification state PARTIALLY_VERIFIED')).toBeNull()
+  })
+
+  it('renders UNVERIFIED without implying it passed', async () => {
+    const body = detail('medium', 'review_recommended')
+    body.change_risk.verification.state = 'unverified'
+    mockRoutes({
+      list: {
+        analyses: [summary({ change_risk_level: 'medium' })],
+        count: 1,
+        repositories: ['acme/payments'],
+      },
+      detail: body,
+    })
+
+    await openRiskTab()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Verification state UNVERIFIED')).toBeTruthy(),
+    )
+  })
+
+  it('renders BLOCKED as a distinct, non-passing state', async () => {
+    const body = detail('critical', 'requires_human_review')
+    body.change_risk.verification.state = 'blocked'
+    mockRoutes({
+      list: { analyses: [summary()], count: 1, repositories: ['acme/payments'] },
+      detail: body,
+    })
+
+    await openRiskTab()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Verification state BLOCKED')).toBeTruthy(),
+    )
+  })
+
+  it('renders a behavioral regression as passed-to-failed evidence', async () => {
+    const body = detail('critical', 'requires_human_review')
+    body.change_risk.verification.behavioral = {
+      comparison_status: 'REGRESSIONS_FOUND',
+      regressions: [
+        {
+          test_file: 'tests/test_payments.py',
+          test_node_id: 'tests/test_payments.py::test_authorize',
+          baseline_status: 'passed',
+          target_status: 'failed',
+          comparison_status: 'REGRESSION',
+          timeout_attribution: null,
+          timeout_attribution_source: null,
+          selection_provenance: 'deterministic_changed_test_files',
+        },
+      ],
+    }
+    mockRoutes({
+      list: { analyses: [summary()], count: 1, repositories: ['acme/payments'] },
+      detail: body,
+    })
+
+    await openRiskTab()
+
+    await waitFor(() => expect(screen.getByText('Behavioral comparison')).toBeTruthy())
+    expect(screen.getByText('Regressions found')).toBeTruthy()
+    expect(screen.getByText('tests/test_payments.py::test_authorize')).toBeTruthy()
+    expect(screen.getByText('passed → failed')).toBeTruthy()
+  })
+
+  it('renders a clean behavioral comparison without inventing a regression', async () => {
+    const body = detail('low', 'no_review_required')
+    body.change_risk.verification.behavioral = {
+      comparison_status: 'NO_REGRESSIONS',
+      regressions: [],
+    }
+    mockRoutes({
+      list: {
+        analyses: [summary({ change_risk_level: 'low' })],
+        count: 1,
+        repositories: ['acme/payments'],
+      },
+      detail: body,
+    })
+
+    await openRiskTab()
+
+    await waitFor(() => expect(screen.getByText('Behavioral comparison')).toBeTruthy())
+    expect(screen.getByText('No regressions')).toBeTruthy()
+    expect(
+      screen.getByText(/passed on the base revision failed or timed out/),
+    ).toBeTruthy()
+  })
+
+  it('shows behavioral comparison as unavailable for an older response missing the field', async () => {
+    mockRoutes({
+      list: { analyses: [summary()], count: 1, repositories: ['acme/payments'] },
+      detail: detail('critical', 'requires_human_review'),
+    })
+
+    await openRiskTab()
+
+    await waitFor(() => expect(screen.getByText('Behavioral comparison')).toBeTruthy())
+    expect(
+      screen.getByText(/no base-vs-target behavioral comparison was produced/),
+    ).toBeTruthy()
+  })
+
+  it('surfaces a proof-integrity mismatch as an integrity failure, not a verified result', async () => {
+    const body = detail('critical', 'requires_human_review')
+    body.change_risk.verification.proof_integrity = {
+      status: 'INTEGRITY_MISMATCH',
+      reason: 'persisted proof does not match the ledger-anchored hash',
+      expected_hash: 'e'.repeat(64),
+      actual_hash: 'a'.repeat(64),
+    }
+    mockRoutes({
+      list: { analyses: [summary()], count: 1, repositories: ['acme/payments'] },
+      detail: body,
+    })
+
+    await openRiskTab()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Proof integrity INTEGRITY_MISMATCH')).toBeTruthy(),
+    )
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(screen.getByText(/do not treat this analysis as verified/)).toBeTruthy()
+  })
+
+  it('shows proof-integrity verified without altering the verification state', async () => {
+    const body = detail('low', 'no_review_required')
+    body.change_risk.verification.state = 'verified'
+    body.change_risk.verification.proof_integrity = {
+      status: 'INTEGRITY_VERIFIED',
+      reason: null,
+      expected_hash: 'v'.repeat(64),
+      actual_hash: 'v'.repeat(64),
+    }
+    mockRoutes({
+      list: {
+        analyses: [summary({ change_risk_level: 'low' })],
+        count: 1,
+        repositories: ['acme/payments'],
+      },
+      detail: body,
+    })
+
+    await openRiskTab()
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Proof integrity INTEGRITY_VERIFIED')).toBeTruthy(),
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

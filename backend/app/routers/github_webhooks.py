@@ -20,7 +20,11 @@ from app.models import (
 )
 from app.services.github_service import GitHubService
 from app.services.pr_analysis import PRAnalysisPipeline
-from app.services.change_risk_view import change_risk_view, pr_analysis_summary
+from app.services.change_risk_view import (
+    change_risk_view,
+    pr_analysis_summary,
+    proof_hash_from_ledger,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -396,7 +400,9 @@ async def get_pr_analysis(
         "change_risk_base_revision": pr_analysis.change_risk_base_revision,
         "change_risk_hash": pr_analysis.change_risk_hash,
         "change_risk": change_risk_view(
-            pr_analysis.change_risk_report, pr_analysis.change_risk_error
+            pr_analysis.change_risk_report,
+            pr_analysis.change_risk_error,
+            expected_proof_hash=proof_hash_from_ledger(pr_analysis.ledger_run_id),
         ),
         "change_risk_error": pr_analysis.change_risk_error,
     }

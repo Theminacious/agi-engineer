@@ -6,7 +6,12 @@ from unittest.mock import patch
 
 from app.models.change_impact import ChangeImpactReport, Confidence, RiskLevel
 from app.services.change_risk_engine import ChangeRiskAssessment
-from app.services.verification_execution import VerificationExecutor
+from app.services.verification_execution import (
+    VerificationCommandResult,
+    VerificationExecutor,
+    _static_analysis_result_for,
+    _test_execution_result_for,
+)
 
 
 def _impact(changed_files=("tests/test_sample.py",)):
@@ -104,7 +109,7 @@ def test_timeout_becomes_structured_evidence(tmp_path):
     assert command["status"] == "TIMEOUT"
     assert command["executed"] is True
     assert command["exit_code"] is None
-    assert result.test_execution_result == "blocked"
+    assert result.test_execution_result == "unavailable"
 
 
 def test_ruff_pass_and_failure_are_structured(tmp_path):
@@ -706,3 +711,112 @@ def test_src_layout_test_executes_the_checkout_package(tmp_path):
     assert command["exit_code"] == 0
     assert command["executed_test_count"] == 1
     assert result.test_execution_result == "passed"
+
+
+def _cmd(check, status, *, executed=True, exit_code=None, stdout="", stderr="",
+         reason=None, node_results=None):
+    return VerificationCommandResult(
+        check=check,
+        command=["x"],
+        revision="r",
+        working_directory="/tmp/x",
+        discovered=True,
+        executed=executed,
+        status=status,
+        exit_code=exit_code,
+        duration_ms=1,
+        stdout=stdout,
+        stderr=stderr,
+        reason=reason,
+        node_results=node_results,
+    )
+
+
+class TestInfraIsNotTestFailure:
+    def test_genuine_node_failure_is_failed(self):
+        result = _cmd("pytest", "FAILED", exit_code=1, stdout="1 failed")
+        assert _test_execution_result_for(result) == "failed"
+
+    def test_passed_is_passed(self):
+        result = _cmd("pytest", "PASSED", exit_code=0)
+        assert _test_execution_result_for(result) == "passed"
+
+    def test_collection_failure_is_unavailable(self):
+        result = _cmd(
+            "pytest", "FAILED", exit_code=2,
+            stderr="ImportError while importing test module",
+        )
+        assert _test_execution_result_for(result) == "unavailable"
+
+    def test_missing_dependency_is_unavailable(self):
+        result = _cmd(
+            "pytest", "FAILED", exit_code=1,
+            stdout="ModuleNotFoundError: No module named 'nope'",
+        )
+        assert _test_execution_result_for(result) == "unavailable"
+
+    def test_no_tests_collected_is_unavailable(self):
+        result = _cmd("pytest", "FAILED", exit_code=5, stdout="no tests ran")
+        assert _test_execution_result_for(result) == "unavailable"
+
+    def test_usage_error_is_unavailable(self):
+        result = _cmd("pytest", "FAILED", exit_code=4, stderr="ERROR: usage")
+        assert _test_execution_result_for(result) == "unavailable"
+
+    def test_execution_timeout_is_unavailable_not_failed(self):
+        result = _cmd("pytest", "TIMEOUT", reason="timeout after 5s")
+        assert _test_execution_result_for(result) == "unavailable"
+
+    def test_execution_error_is_unavailable(self):
+        result = _cmd("pytest", "ERROR", reason="boom")
+        assert _test_execution_result_for(result) == "unavailable"
+
+
+class TestRuffEvidenceIsNotConflated:
+    def test_no_findings_is_passed(self):
+        assert _static_analysis_result_for(_cmd("ruff", "PASSED", exit_code=0)) == "passed"
+
+    def test_genuine_findings_remain_distinguishable(self):
+        result = _cmd("ruff", "FAILED", exit_code=1, stdout="[{...}]")
+        assert _static_analysis_result_for(result) == "failed"
+
+    def test_usage_error_is_unavailable(self):
+        result = _cmd("ruff", "FAILED", exit_code=2, stderr="ruff: error")
+        assert _static_analysis_result_for(result) == "unavailable"
+
+    def test_timeout_is_unavailable(self):
+        result = _cmd("ruff", "TIMEOUT", reason="timeout after 5s")
+        assert _static_analysis_result_for(result) == "unavailable"
+
+    def test_execution_error_is_unavailable(self):
+        assert _static_analysis_result_for(_cmd("ruff", "ERROR", reason="boom")) == "unavailable"
+
+    def test_not_executed_is_unavailable(self):
+        result = _cmd("ruff", "NOT_EXECUTED", executed=False)
+        assert _static_analysis_result_for(result) == "unavailable"
+
+
+def test_pytest_collection_failure_is_not_fabricated_as_failed(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/test_sample.py").write_text(
+        "import totally_missing_dependency_xyz\n\ndef test_sample():\n    assert True\n"
+    )
+    result = VerificationExecutor(timeout_seconds=30).execute(
+        str(tmp_path), "target", _impact(), _risk(), []
+    )
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["executed"] is True
+    assert result.test_execution_result == "unavailable"
+
+
+def test_execution_timeout_is_not_fabricated_as_failed(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/test_sample.py").write_text(
+        "import time\n\ndef test_sample():\n    time.sleep(30)\n"
+    )
+    result = VerificationExecutor(timeout_seconds=2).execute(
+        str(tmp_path), "target", _impact(), _risk(), []
+    )
+    command = next(item for item in result.command_results if item["check"] == "pytest")
+    assert command["status"] == "TIMEOUT"
+    assert result.test_execution_result == "unavailable"

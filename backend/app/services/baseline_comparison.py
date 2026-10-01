@@ -33,8 +33,17 @@ class BaselineComparisonService:
         added = False
         resolved = str(Path(repo_path).resolve())
         try:
+            base_sha = subprocess.run(
+                ["git", "-C", resolved, "rev-parse", "--verify", "--quiet", f"{base_revision}^{{commit}}"],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_seconds,
+                shell=False,
+            ).stdout.strip()
+            if not base_sha:
+                raise ValueError(f"base revision does not resolve to a commit: {base_revision}")
             subprocess.run(
-                ["git", "-C", resolved, "worktree", "add", "--detach", str(worktree), base_revision],
+                ["git", "-C", resolved, "worktree", "add", "--detach", str(worktree), base_sha],
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,
@@ -42,6 +51,17 @@ class BaselineComparisonService:
                 check=True,
             )
             added = True
+            head = subprocess.run(
+                ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_seconds,
+                shell=False,
+            ).stdout.strip()
+            if head != base_sha:
+                raise ValueError(
+                    f"baseline worktree HEAD {head} does not match resolved base {base_sha}"
+                )
             yield worktree
         finally:
             if added:
@@ -92,6 +112,7 @@ class BaselineComparisonService:
     ) -> Dict[str, Any]:
         from app.services.verification_execution import (
             _behavioral_execution_provenance,
+            classify_execution_outcome,
             run_selected_tests,
         )
 
@@ -102,6 +123,10 @@ class BaselineComparisonService:
                 "exit_code": None,
                 "node_results": {},
                 "missing_selected_tests": list(pytest_targets),
+                "execution_outcome": classify_execution_outcome(
+                    status="NOT_EXECUTED", exit_code=None, output="",
+                    node_results={}, reason=None,
+                ),
                 "execution": _behavioral_execution_provenance(
                     command=None, working_directory=None,
                     revision=base_revision or "", duration_ms=None,

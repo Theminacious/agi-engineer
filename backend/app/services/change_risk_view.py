@@ -11,7 +11,13 @@ the deterministic hashes proving it. Not a prediction of production impact.
 
 from typing import Any, Dict, List, Optional
 
+from app.services.verification_engine import recompute_proof_hash
+
 RISK_LEVELS = ("none", "low", "medium", "high", "critical")
+
+INTEGRITY_VERIFIED = "INTEGRITY_VERIFIED"
+INTEGRITY_MISMATCH = "INTEGRITY_MISMATCH"
+INTEGRITY_UNAVAILABLE = "INTEGRITY_UNAVAILABLE"
 
 RECOMMENDATION_LABELS = {
     "no_review_required": "No review required",
@@ -66,6 +72,31 @@ def _attribution_summary(attributions: Any) -> Optional[Dict[str, Any]]:
     }
 
 
+def _behavioral_view(verification: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    status = verification.get("behavioral_comparison_status")
+    regressions = verification.get("behavioral_regressions")
+    if status is None and regressions is None:
+        return None
+    rows = []
+    for row in regressions if isinstance(regressions, list) else []:
+        if not isinstance(row, dict):
+            continue
+        rows.append({
+            "test_file": row.get("test_file"),
+            "test_node_id": row.get("test_node_id"),
+            "baseline_status": row.get("baseline_status"),
+            "target_status": row.get("target_status"),
+            "comparison_status": row.get("comparison_status"),
+            "timeout_attribution": row.get("timeout_attribution"),
+            "timeout_attribution_source": row.get("timeout_attribution_source"),
+            "selection_provenance": row.get("selection_provenance"),
+        })
+    return {
+        "comparison_status": status,
+        "regressions": rows if isinstance(regressions, list) else None,
+    }
+
+
 def _command_summaries(value: Any) -> Optional[List[Dict[str, Any]]]:
     if not isinstance(value, list):
         return None
@@ -84,6 +115,71 @@ def _command_summaries(value: Any) -> Optional[List[Dict[str, Any]]]:
             "stderr": _bounded_text(command.get("stderr")),
         })
     return summaries
+
+
+def proof_hash_from_ledger(ledger_run_id: Optional[str]) -> Optional[str]:
+    """The proof hash anchored in the run's ledger, or None.
+
+    Reads the append-only ledger events for the run and returns the payload_ref
+    of the latest VERIFICATION_PROOF_ASSESSED event. Read-only; never writes.
+    """
+    if not ledger_run_id:
+        return None
+    try:
+        from agent.run_ledger import read_events
+
+        events = read_events(ledger_run_id)
+    except Exception:
+        return None
+    for event in reversed(events):
+        if isinstance(event, dict) and event.get("event_type") == "VERIFICATION_PROOF_ASSESSED":
+            ref = event.get("payload_ref")
+            return ref if isinstance(ref, str) and ref else None
+    return None
+
+
+def _proof_integrity(proof_body: Any, expected_hash: Optional[str]) -> Dict[str, Any]:
+    """Compare the persisted proof body against the ledger-anchored hash.
+
+    Never mutates or repairs the proof, and never turns a mismatch into a
+    successful/clean verification result: the status is reported alongside the
+    unchanged verification state.
+    """
+    if not isinstance(proof_body, dict) or not proof_body:
+        return {
+            "status": INTEGRITY_UNAVAILABLE,
+            "reason": "no verification proof was persisted",
+            "expected_hash": expected_hash or None,
+            "actual_hash": None,
+        }
+    if not expected_hash:
+        return {
+            "status": INTEGRITY_UNAVAILABLE,
+            "reason": "no anchored proof hash is recorded in the ledger",
+            "expected_hash": None,
+            "actual_hash": None,
+        }
+    actual = recompute_proof_hash(proof_body)
+    if actual is None:
+        return {
+            "status": INTEGRITY_UNAVAILABLE,
+            "reason": "persisted proof could not be canonicalized",
+            "expected_hash": expected_hash,
+            "actual_hash": None,
+        }
+    if actual == expected_hash:
+        return {
+            "status": INTEGRITY_VERIFIED,
+            "reason": None,
+            "expected_hash": expected_hash,
+            "actual_hash": actual,
+        }
+    return {
+        "status": INTEGRITY_MISMATCH,
+        "reason": "persisted proof does not match the ledger-anchored hash",
+        "expected_hash": expected_hash,
+        "actual_hash": actual,
+    }
 
 
 def unavailable_view(reason: Optional[str]) -> Dict[str, Any]:
@@ -110,6 +206,7 @@ def unavailable_view(reason: Optional[str]) -> Dict[str, Any]:
 def change_risk_view(
     report: Optional[Dict[str, Any]],
     error: Optional[str] = None,
+    expected_proof_hash: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not isinstance(report, dict) or not report:
         return unavailable_view(error)
@@ -241,6 +338,10 @@ def change_risk_view(
             "command_results": _command_summaries(verification.get("command_results")),
             "relevant_test_selection": verification.get("relevant_test_selection"),
             "reasons": _as_list(verification.get("reasons")),
+            "behavioral": _behavioral_view(verification),
+            "proof_integrity": _proof_integrity(
+                report.get("verification"), expected_proof_hash
+            ),
         },
         "baseline": {
             "base_revision": report.get("base_revision"),

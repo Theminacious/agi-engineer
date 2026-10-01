@@ -327,3 +327,65 @@ print(VerificationEngine().assess(impact, [], risk, evidence).deterministic_hash
     second = subprocess.check_output([sys.executable, "-c", script], env=env, text=True).strip()
 
     assert first == second
+
+def test_unavailable_test_execution_does_not_block():
+    proof = _proof(
+        VerificationEvidence(
+            tests_discovered=["tests/test_service.py"],
+            tests_executed=["tests/test_service.py"],
+            test_execution_result="unavailable",
+        )
+    )
+
+    assert proof.state is not VerificationState.BLOCKED
+    assert "test_execution" in proof.missing_checks
+    assert proof.test_execution_result == "unavailable"
+    assert any("test execution evidence is unavailable" in reason for reason in proof.reasons)
+
+
+def test_unavailable_static_analysis_does_not_block():
+    proof = _proof(
+        VerificationEvidence(
+            static_analysis_executed=False,
+            static_analysis_result="unavailable",
+        )
+    )
+
+    assert proof.state is not VerificationState.BLOCKED
+    assert "static_analysis_execution" in proof.missing_checks
+    assert any("static analysis evidence is unavailable" in reason for reason in proof.reasons)
+
+
+def test_genuine_static_findings_still_block():
+    proof = _proof(
+        VerificationEvidence(
+            tests_discovered=["tests/test_service.py"],
+            tests_executed=["tests/test_service.py"],
+            test_execution_result="passed",
+            static_analysis_executed=True,
+            static_analysis_result="failed",
+        )
+    )
+
+    assert proof.state is VerificationState.BLOCKED
+    assert proof.static_analysis_result == "failed"
+
+
+def test_unavailable_evidence_preserves_check_accounting():
+    proof = _proof(
+        VerificationEvidence(
+            tests_discovered=["tests/test_service.py"],
+            tests_executed=["tests/test_service.py"],
+            test_execution_result="unavailable",
+            static_analysis_executed=False,
+            static_analysis_result="unavailable",
+            findings_before=[],
+            findings_after=[],
+        )
+    )
+
+    assert "test_execution" in proof.required_checks
+    assert "static_analysis_execution" in proof.required_checks
+    assert "test_execution" in proof.missing_checks
+    assert "static_analysis_execution" in proof.missing_checks
+    assert "finding_comparison" in proof.completed_checks

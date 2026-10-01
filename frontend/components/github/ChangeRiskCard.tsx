@@ -5,12 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertTriangle, ArrowDown, ShieldCheck } from "lucide-react";
 import {
   affectedPath,
+  behavioralStatusClassName,
+  behavioralStatusLabel,
   factorSummary,
+  proofIntegrityClassName,
+  proofIntegrityLabel,
   recommendationLabel,
   requiresHumanReview,
   riskLevelClassName,
   riskLevelLabel,
   shortHash,
+  verificationStateClassName,
+  verificationStateLabel,
   type ChangeRisk,
 } from "@/lib/prAnalyses";
 
@@ -279,11 +285,33 @@ export function ChangeRiskCard({ prNumber, repository, changeRisk }: ChangeRiskC
             Verification
           </h3>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge className="border">{verification?.state?.toUpperCase() ?? "UNKNOWN"}</Badge>
+            <Badge
+              className={`border ${verificationStateClassName(verification?.state)}`}
+              aria-label={`Verification state ${verificationStateLabel(verification?.state)}`}
+            >
+              {verificationStateLabel(verification?.state)}
+            </Badge>
             <span className="text-sm text-muted-foreground">
               confidence {verification?.confidence ?? "unknown"}
             </span>
+            <Badge
+              className={`border ${proofIntegrityClassName(verification?.proof_integrity?.status)}`}
+              aria-label={`Proof integrity ${verification?.proof_integrity?.status ?? "INTEGRITY_UNAVAILABLE"}`}
+            >
+              {proofIntegrityLabel(verification?.proof_integrity?.status)}
+            </Badge>
           </div>
+          {verification?.proof_integrity?.status === "INTEGRITY_MISMATCH" && (
+            <div
+              role="alert"
+              className="mt-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900"
+            >
+              {verification.proof_integrity.reason ??
+                "Persisted verification proof does not match the ledger-anchored hash."}{" "}
+              This is an integrity failure, not a verification result — do not treat this
+              analysis as verified.
+            </div>
+          )}
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <EvidenceList label="Required checks" values={verification?.required_checks} />
             <EvidenceList label="Completed checks" values={verification?.completed_checks} />
@@ -315,6 +343,70 @@ export function ChangeRiskCard({ prNumber, repository, changeRisk }: ChangeRiskC
                 )
               })}
             </div>
+          )}
+        </section>
+
+        <section aria-labelledby={`behavioral-${prNumber}`}>
+          <h3 id={`behavioral-${prNumber}`} className="mb-2 text-sm font-semibold">
+            Behavioral comparison
+          </h3>
+          {verification?.behavioral === null || verification?.behavioral === undefined ? (
+            <p className="text-sm text-muted-foreground">
+              Not available — no base-vs-target behavioral comparison was produced for this
+              analysis.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  className={`border ${behavioralStatusClassName(
+                    verification.behavioral.comparison_status,
+                  )}`}
+                >
+                  {behavioralStatusLabel(verification.behavioral.comparison_status)}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  base revision vs target revision, per selected test node
+                </span>
+              </div>
+              {verification.behavioral.regressions === null ||
+              verification.behavioral.regressions === undefined ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Per-node regression detail is not available.
+                </p>
+              ) : verification.behavioral.regressions.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  No test node that passed on the base revision failed or timed out on the
+                  target revision.
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {verification.behavioral.regressions.map((row, index) => (
+                    <li
+                      key={`${row.test_node_id ?? row.test_file ?? "node"}-${index}`}
+                      className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm"
+                    >
+                      <div className="font-mono text-xs break-all text-red-900">
+                        {row.test_node_id ?? row.test_file ?? "Unknown test node"}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Badge className="border">
+                          {(row.baseline_status ?? "unknown")} → {(row.target_status ?? "unknown")}
+                        </Badge>
+                        {row.comparison_status && (
+                          <span className="text-xs text-red-900">{row.comparison_status}</span>
+                        )}
+                        {row.timeout_attribution && (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {row.timeout_attribution}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </section>
 

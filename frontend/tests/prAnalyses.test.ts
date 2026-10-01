@@ -10,16 +10,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_BASE } from '@/lib/api'
 import {
   affectedPath,
+  behavioralStatusClassName,
+  behavioralStatusLabel,
   factorSummary,
   fetchPRAnalyses,
   fetchPRAnalysis,
   prAnalysesPath,
   prAnalysisPath,
+  proofIntegrityClassName,
+  proofIntegrityLabel,
   recommendationLabel,
   requiresHumanReview,
   riskLevelClassName,
   riskLevelLabel,
   shortHash,
+  verificationStateClassName,
+  verificationStateLabel,
   type ChangeRisk,
 } from '@/lib/prAnalyses'
 
@@ -235,3 +241,84 @@ describe('affectedPath', () => {
     ).toEqual(['user_repo.py::UserRepository.get_user'])
   })
 })
+
+describe('verificationStateLabel', () => {
+  it('uppercases a known state', () => {
+    expect(verificationStateLabel('verified')).toBe('VERIFIED')
+    expect(verificationStateLabel('partially_verified')).toBe('PARTIALLY_VERIFIED')
+    expect(verificationStateLabel('blocked')).toBe('BLOCKED')
+  })
+
+  it('reports UNKNOWN when the state is missing', () => {
+    expect(verificationStateLabel(null)).toBe('UNKNOWN')
+    expect(verificationStateLabel(undefined)).toBe('UNKNOWN')
+  })
+})
+
+describe('verificationStateClassName', () => {
+  it('gives each state a distinct style so VERIFIED is not confused with the rest', () => {
+    const verified = verificationStateClassName('verified')
+    const partial = verificationStateClassName('partially_verified')
+    const unverified = verificationStateClassName('unverified')
+    const blocked = verificationStateClassName('blocked')
+    const distinct = new Set([verified, partial, unverified, blocked])
+    expect(distinct.size).toBe(4)
+    expect(verified).not.toBe(partial)
+    expect(blocked).toContain('red')
+  })
+
+  it('marks an unknown or missing state as unresolved rather than passing', () => {
+    expect(verificationStateClassName(null)).toContain('dashed')
+    expect(verificationStateClassName('mystery')).toContain('dashed')
+  })
+})
+
+describe('behavioralStatusLabel', () => {
+  it('labels known comparison statuses', () => {
+    expect(behavioralStatusLabel('REGRESSIONS_FOUND')).toBe('Regressions found')
+    expect(behavioralStatusLabel('NO_REGRESSIONS')).toBe('No regressions')
+    expect(behavioralStatusLabel('UNKNOWN')).toBe('Inconclusive')
+  })
+
+  it('reports not available when the status is missing', () => {
+    expect(behavioralStatusLabel(null)).toBe('Not available')
+    expect(behavioralStatusLabel(undefined)).toBe('Not available')
+  })
+})
+
+describe('behavioralStatusClassName', () => {
+  it('flags regressions in red and no-regressions distinctly', () => {
+    expect(behavioralStatusClassName('REGRESSIONS_FOUND')).toContain('red')
+    expect(behavioralStatusClassName('NO_REGRESSIONS')).not.toContain('red')
+  })
+
+  it('marks a missing status as unresolved', () => {
+    expect(behavioralStatusClassName(null)).toContain('dashed')
+  })
+})
+
+describe('proofIntegrityLabel', () => {
+  it('labels known integrity statuses', () => {
+    expect(proofIntegrityLabel('INTEGRITY_VERIFIED')).toBe('Proof integrity verified')
+    expect(proofIntegrityLabel('INTEGRITY_MISMATCH')).toBe('Proof integrity MISMATCH')
+    expect(proofIntegrityLabel('INTEGRITY_UNAVAILABLE')).toBe('Proof integrity not checkable')
+  })
+
+  it('reports not checkable when the status is missing', () => {
+    expect(proofIntegrityLabel(null)).toBe('Proof integrity not checkable')
+    expect(proofIntegrityLabel(undefined)).toBe('Proof integrity not checkable')
+  })
+})
+
+describe('proofIntegrityClassName', () => {
+  it('flags a mismatch in red and a verified proof distinctly', () => {
+    expect(proofIntegrityClassName('INTEGRITY_MISMATCH')).toContain('red')
+    expect(proofIntegrityClassName('INTEGRITY_VERIFIED')).not.toContain('red')
+  })
+
+  it('marks unavailable or missing integrity as unresolved rather than passing', () => {
+    expect(proofIntegrityClassName('INTEGRITY_UNAVAILABLE')).toContain('dashed')
+    expect(proofIntegrityClassName(null)).toContain('dashed')
+  })
+})
+

@@ -728,6 +728,7 @@ class PRAnalysisPipeline:
                 risk=assessment,
                 contexts=self._last_finding_contexts,
                 capture_node_results=True,
+                expected_target_sha=pr_analysis.head_sha,
             )
             baseline = BaselineComparisonService().compare(
                 repo_path=repo_path,

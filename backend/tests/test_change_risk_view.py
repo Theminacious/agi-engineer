@@ -100,3 +100,43 @@ def test_attribution_summary_is_none_when_unavailable():
     })
 
     assert view["regression"]["attribution_summary"] is None
+
+
+def test_behavioral_evidence_is_projected_from_the_proof():
+    view = change_risk_view({
+        "risk_level": "high",
+        "verification": {
+            "behavioral_comparison_status": "REGRESSIONS_FOUND",
+            "behavioral_regressions": [
+                {
+                    "test_file": "tests/test_x.py",
+                    "test_node_id": "tests/test_x.py::test_fn",
+                    "baseline_status": "passed",
+                    "target_status": "failed",
+                    "comparison_status": "REGRESSION",
+                    "timeout_attribution": None,
+                    "timeout_attribution_source": None,
+                    "selection_provenance": "deterministic_changed_test_files",
+                    "baseline_execution": {"stdout": "dropped"},
+                }
+            ],
+        },
+    })
+
+    behavioral = view["verification"]["behavioral"]
+    assert behavioral["comparison_status"] == "REGRESSIONS_FOUND"
+    assert len(behavioral["regressions"]) == 1
+    row = behavioral["regressions"][0]
+    assert row["test_node_id"] == "tests/test_x.py::test_fn"
+    assert row["baseline_status"] == "passed"
+    assert row["target_status"] == "failed"
+    assert "baseline_execution" not in row
+
+
+def test_behavioral_evidence_is_none_when_not_produced():
+    view = change_risk_view({
+        "risk_level": "low",
+        "verification": {"reasons": []},
+    })
+
+    assert view["verification"]["behavioral"] is None

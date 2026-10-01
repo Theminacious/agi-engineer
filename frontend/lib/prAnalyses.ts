@@ -79,6 +79,29 @@ export interface ChangeDecision {
   change_relationships: string[]
 }
 
+export interface BehavioralRegressionRow {
+  test_file: string | null
+  test_node_id: string | null
+  baseline_status: string | null
+  target_status: string | null
+  comparison_status: string | null
+  timeout_attribution: string | null
+  timeout_attribution_source: string | null
+  selection_provenance: string | null
+}
+
+export interface BehavioralRecord {
+  comparison_status: string | null
+  regressions: BehavioralRegressionRow[] | null
+}
+
+export interface ProofIntegrityRecord {
+  status: 'INTEGRITY_VERIFIED' | 'INTEGRITY_MISMATCH' | 'INTEGRITY_UNAVAILABLE' | string
+  reason: string | null
+  expected_hash: string | null
+  actual_hash: string | null
+}
+
 export interface VerificationRecord {
   state: 'verified' | 'partially_verified' | 'unverified' | 'blocked' | string | null
   confidence: string | null
@@ -93,6 +116,8 @@ export interface VerificationRecord {
   command_results: VerificationCommandSummary[] | null
   relevant_test_selection: string | null
   reasons: string[]
+  behavioral?: BehavioralRecord | null
+  proof_integrity?: ProofIntegrityRecord | null
 }
 
 export interface BaselineRecord {
@@ -271,6 +296,75 @@ export function riskLevelClassName(level: string | null | undefined): string {
 
 export function riskLevelLabel(level: string | null | undefined): string {
   return level ? level.toUpperCase() : 'NOT ASSESSED'
+}
+
+const VERIFICATION_STATE_STYLES: Record<string, string> = {
+  verified: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  partially_verified: 'bg-amber-100 text-amber-900 border-amber-300',
+  unverified: 'bg-slate-100 text-slate-700 border-slate-300',
+  blocked: 'bg-red-100 text-red-900 border-red-300',
+}
+
+export function verificationStateClassName(state: string | null | undefined): string {
+  if (!state) return 'bg-slate-100 text-slate-600 border-slate-300 border-dashed'
+  return (
+    VERIFICATION_STATE_STYLES[state.toLowerCase()] ??
+    'bg-slate-100 text-slate-600 border-slate-300 border-dashed'
+  )
+}
+
+export function verificationStateLabel(state: string | null | undefined): string {
+  return state ? state.toUpperCase() : 'UNKNOWN'
+}
+
+const BEHAVIORAL_STATUS_LABELS: Record<string, string> = {
+  REGRESSIONS_FOUND: 'Regressions found',
+  NO_REGRESSIONS: 'No regressions',
+  UNKNOWN: 'Inconclusive',
+}
+
+export function behavioralStatusLabel(status: string | null | undefined): string {
+  if (!status) return 'Not available'
+  return BEHAVIORAL_STATUS_LABELS[status] ?? status
+}
+
+const BEHAVIORAL_STATUS_STYLES: Record<string, string> = {
+  REGRESSIONS_FOUND: 'bg-red-100 text-red-900 border-red-300',
+  NO_REGRESSIONS: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  UNKNOWN: 'bg-slate-100 text-slate-700 border-slate-300',
+}
+
+export function behavioralStatusClassName(status: string | null | undefined): string {
+  if (!status) return 'bg-slate-100 text-slate-600 border-slate-300 border-dashed'
+  return (
+    BEHAVIORAL_STATUS_STYLES[status] ??
+    'bg-slate-100 text-slate-600 border-slate-300 border-dashed'
+  )
+}
+
+const PROOF_INTEGRITY_LABELS: Record<string, string> = {
+  INTEGRITY_VERIFIED: 'Proof integrity verified',
+  INTEGRITY_MISMATCH: 'Proof integrity MISMATCH',
+  INTEGRITY_UNAVAILABLE: 'Proof integrity not checkable',
+}
+
+export function proofIntegrityLabel(status: string | null | undefined): string {
+  if (!status) return 'Proof integrity not checkable'
+  return PROOF_INTEGRITY_LABELS[status] ?? status
+}
+
+const PROOF_INTEGRITY_STYLES: Record<string, string> = {
+  INTEGRITY_VERIFIED: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  INTEGRITY_MISMATCH: 'bg-red-100 text-red-900 border-red-300',
+  INTEGRITY_UNAVAILABLE: 'bg-slate-100 text-slate-700 border-slate-300 border-dashed',
+}
+
+export function proofIntegrityClassName(status: string | null | undefined): string {
+  if (!status) return 'bg-slate-100 text-slate-600 border-slate-300 border-dashed'
+  return (
+    PROOF_INTEGRITY_STYLES[status] ??
+    'bg-slate-100 text-slate-600 border-slate-300 border-dashed'
+  )
 }
 
 const RECOMMENDATION_LABELS: Record<string, string> = {

@@ -137,6 +137,15 @@ class ChangeImpactService:
         if not (repo / ".git").exists():
             raise ChangeImpactError(f"Not a git repository: {repo}")
 
+        resolved_base = self._resolve_commit(repo, base_revision)
+        resolved_target = self._resolve_commit(repo, target_revision)
+        if resolved_base is None or resolved_target is None:
+            unresolved = base_revision if resolved_base is None else target_revision
+            raise ChangeImpactError(
+                f"revision does not resolve to a commit: {unresolved}"
+            )
+        base_revision, target_revision = resolved_base, resolved_target
+
         report = ChangeImpactReport(
             repository=repository_label or str(repo),
             base_revision=base_revision,
@@ -287,6 +296,29 @@ class ChangeImpactService:
 
         self._record(report, ledger)
 
+    def _resolve_commit(self, repo: Path, revision: str) -> Optional[str]:
+        """Pin any resolvable ref/SHA to a full commit SHA, or None.
+
+        Resolving to an immutable commit SHA up front means every downstream
+        conclusion (diff, graph, proof hash, worktree checkout) is anchored to
+        the exact commit, not a mutable ref that could move between steps.
+        """
+        if not revision:
+            return None
+        try:
+            out = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", f"{revision}^{{commit}}"],
+                cwd=str(repo),
+                check=True,
+                capture_output=True,
+                text=True,
+                env=self._git_env(repo),
+            )
+        except subprocess.CalledProcessError:
+            return None
+        sha = out.stdout.strip()
+        return sha or None
+
     def _git_env(self, repo: Path) -> Dict[str, str]:
         """Run git without reading the user's global config or home directory."""
 
@@ -372,6 +404,26 @@ class ChangeImpactService:
                 )
             except subprocess.CalledProcessError as e:
                 logger.warning("Could not create worktree for %s: %s", revision, e.stderr)
+                return None, False
+
+            head = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=worktree_path,
+                check=False,
+                capture_output=True,
+                text=True,
+                env=self._git_env(repo),
+            ).stdout.strip()
+            if head != revision:
+                logger.warning(
+                    "Worktree HEAD %s does not match requested revision %s; refusing to build graph",
+                    head, revision,
+                )
+                subprocess.run(
+                    ["git", "worktree", "remove", "--force", worktree_path],
+                    cwd=str(repo), check=False, capture_output=True, text=True,
+                    env=self._git_env(repo),
+                )
                 return None, False
 
             try:
