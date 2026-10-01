@@ -6,39 +6,39 @@ from app.db import get_db
 from app.models.installation import Installation
 from app.models.repository import Repository
 from app.schemas import InstallationResponse
+from app.authz import Principal, get_principal
 from typing import List
 
 router = APIRouter(prefix="/installations", tags=["installations"])
 
 
+def _own_installation_id(installation_id: int, principal: Principal) -> int:
+    if installation_id != principal.installation_id:
+        raise HTTPException(status_code=404, detail="Not found")
+    return installation_id
+
+
 @router.get("/", response_model=List[InstallationResponse])
-async def list_installations(db: Session = Depends(get_db)) -> list:
-    """List all installations.
-    
-    Returns:
-        List of Installation objects
-    """
-    installations = db.query(Installation).all()
-    return installations
+async def list_installations(
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> list:
+    """List installations owned by the authenticated principal."""
+    return (
+        db.query(Installation)
+        .filter(Installation.id == principal.installation_id)
+        .all()
+    )
 
 
 @router.get("/{installation_id}", response_model=InstallationResponse)
 async def get_installation(
     installation_id: int,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> Installation:
-    """Get installation by ID.
-    
-    Args:
-        installation_id: Installation database ID
-        db: Database session
-        
-    Returns:
-        Installation object
-        
-    Raises:
-        HTTPException: If installation not found
-    """
+    """Get the caller's own installation by ID (404 for any other)."""
+    _own_installation_id(installation_id, principal)
     installation = db.query(Installation).filter(
         Installation.id == installation_id
     ).first()
@@ -53,21 +53,10 @@ async def get_installation(
 async def uninstall(
     installation_id: int,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
-    """Uninstall the GitHub App for an installation.
-    
-    Marks installation as inactive but preserves history.
-    
-    Args:
-        installation_id: Installation database ID
-        db: Database session
-        
-    Returns:
-        Success message
-        
-    Raises:
-        HTTPException: If installation not found
-    """
+    """Uninstall the GitHub App for the caller's own installation."""
+    _own_installation_id(installation_id, principal)
     installation = db.query(Installation).filter(
         Installation.id == installation_id
     ).first()
@@ -86,20 +75,10 @@ async def enable_repository(
     installation_id: int,
     repo_id: int,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
-    """Enable analysis for a repository.
-    
-    Args:
-        installation_id: Installation database ID
-        repo_id: Repository database ID
-        db: Database session
-        
-    Returns:
-        Success message
-        
-    Raises:
-        HTTPException: If repository not found
-    """
+    """Enable analysis for a repository in the caller's own installation."""
+    _own_installation_id(installation_id, principal)
     repository = db.query(Repository).filter(
         Repository.id == repo_id,
         Repository.installation_id == installation_id,
@@ -119,20 +98,10 @@ async def disable_repository(
     installation_id: int,
     repo_id: int,
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
-    """Disable analysis for a repository.
-    
-    Args:
-        installation_id: Installation database ID
-        repo_id: Repository database ID
-        db: Database session
-        
-    Returns:
-        Success message
-        
-    Raises:
-        HTTPException: If repository not found
-    """
+    """Disable analysis for a repository in the caller's own installation."""
+    _own_installation_id(installation_id, principal)
     repository = db.query(Repository).filter(
         Repository.id == repo_id,
         Repository.installation_id == installation_id,

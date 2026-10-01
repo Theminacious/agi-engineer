@@ -72,7 +72,7 @@ class GitHubService:
         
         # Extract signature from header (format: "sha256=<signature>")
         if not signature_header.startswith("sha256="):
-            logger.warning(f"Invalid signature format: {signature_header}")
+            logger.warning("Invalid webhook signature header format")
             return False
         
         expected_signature = signature_header.split("=", 1)[1]
@@ -474,23 +474,27 @@ class GitHubService:
             logger.error(f"Failed to get token for installation {installation_id}")
             return False
 
+        from app.security import git_credential_config_args
+
         base = self.git_remote_base_url
         if base.startswith("http"):
             scheme, _, host = base.partition("://")
-            clone_url = f"{scheme}://x-access-token:{token}@{host}/{repo_full_name}.git"
+            clone_url = f"{scheme}://{host}/{repo_full_name}.git"
+            auth_args = git_credential_config_args(token)
         else:
             clone_url = os.path.join(base, repo_full_name)
+            auth_args = []
 
         try:
             import subprocess
 
-            def run(args: List[str], required: bool) -> bool:
+            def run(args: List[str], required: bool, label: str) -> bool:
                 result = subprocess.run(
                     args, capture_output=True, text=True, timeout=300
                 )
                 if result.returncode == 0:
                     return True
-                message = f"git {args[3] if len(args) > 3 else ''} failed (exit {result.returncode})"
+                message = f"git {label} failed (exit {result.returncode})"
                 if required:
                     logger.error(f"{message} for {repo_full_name}")
                 else:
@@ -498,32 +502,43 @@ class GitHubService:
                 return False
 
             os.makedirs(dest_path, exist_ok=True)
-            if not run(["git", "init", "--quiet", dest_path], required=True):
+            if not run(["git", "init", "--quiet", dest_path], required=True, label="init"):
                 return False
             if not run(
                 ["git", "-C", dest_path, "remote", "add", "origin", clone_url],
                 required=True,
+                label="remote add",
             ):
                 return False
 
             for extra in extra_refs or []:
                 if not extra or extra == ref:
                     continue
-                if run(["git", "-C", dest_path, "fetch", "--no-tags", "origin", extra], required=False):
+                if run(
+                    ["git", *auth_args, "-C", dest_path, "fetch", "--no-tags", "origin", extra],
+                    required=False,
+                    label="fetch",
+                ):
                     run(
                         ["git", "-C", dest_path, "update-ref",
                          f"refs/remotes/origin/{extra}", "FETCH_HEAD"],
                         required=False,
+                        label="update-ref",
                     )
                 else:
                     logger.warning(f"Could not fetch extra ref '{extra}' for {repo_full_name}")
 
-            if not run(["git", "-C", dest_path, "fetch", "--no-tags", "origin", ref], required=True):
+            if not run(
+                ["git", *auth_args, "-C", dest_path, "fetch", "--no-tags", "origin", ref],
+                required=True,
+                label="fetch",
+            ):
                 return False
 
             if not run(
                 ["git", "-C", dest_path, "checkout", "--quiet", "--detach", "FETCH_HEAD"],
                 required=True,
+                label="checkout",
             ):
                 return False
 

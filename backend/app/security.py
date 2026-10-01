@@ -3,11 +3,26 @@ import jwt
 import requests
 import hmac
 import hashlib
+import base64
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from fastapi import HTTPException, Request, Header
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def git_credential_config_args(token: str) -> List[str]:
+    """`git -c` args authenticating over HTTPS without persisting the token.
+
+    The Authorization header is supplied per-invocation and is never written
+    to a repository's ``.git/config`` the way a token-bearing remote URL is.
+    """
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    return ["-c", f"http.extraheader=Authorization: Basic {basic}"]
+
+
 class GitHubOAuthManager:
     GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize"
     GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -31,13 +46,13 @@ class GitHubOAuthManager:
             "redirect_uri": f"{settings.frontend_url}/oauth/callback",
         }
         headers = {"Accept": "application/json"}
-        logging.error(f"OAuth exchange: client_id={settings.github_client_id}, redirect_uri={settings.frontend_url}/oauth/callback")
         response = requests.post(GitHubOAuthManager.GITHUB_TOKEN_URL, json=payload, headers=headers)
-        logging.error(f"GitHub response: {response.status_code} - {response.text}")
         if response.status_code != 200:
-            raise ValueError(f"Failed to exchange code: {response.text}")
+            logger.error("GitHub OAuth token exchange failed: HTTP %s", response.status_code)
+            raise ValueError(f"Failed to exchange code: HTTP {response.status_code}")
         data = response.json()
         if "error" in data:
+            logger.error("GitHub OAuth error: %s", data.get("error"))
             raise ValueError(f"GitHub OAuth error: {data.get('error_description', data.get('error'))}")
         return data
     @staticmethod

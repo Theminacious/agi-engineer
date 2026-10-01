@@ -16,6 +16,13 @@ from app.models.analysis_result import AnalysisResult
 from app.models.code_fix import CodeFix, FixStatus
 from app.tasks import generate_code_fix
 from app.security import verify_token
+from app.authz import (
+    Principal,
+    get_principal,
+    authorize_fix,
+    authorize_result,
+    authorize_fix_by_result,
+)
 from app.plans import UserPlanContext, PlanTier, create_plan_context
 from app.services.fix_approval import FixApprovalService
 from app.services.fix_application import FixApplicationService
@@ -29,23 +36,22 @@ async def generate_fix(
     result_id: int,
     provider: str = Query("groq", description="AI provider: groq or claude"),
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """Generate AI-powered fix for a code issue.
-    
+
     Args:
         result_id: ID of the AnalysisResult to fix
         provider: AI provider ("groq" or "claude")
         token: JWT token
         db: Database session
-        
+
     Returns:
         Fix generation status
     """
     # Get result
-    result = db.query(AnalysisResult).filter(AnalysisResult.id == result_id).first()
-    if not result:
-        raise HTTPException(status_code=404, detail="Analysis result not found")
+    result = authorize_result(db, result_id, principal)
     
     # Check if fix already exists
     existing_fix = db.query(CodeFix).filter(CodeFix.result_id == result_id).first()
@@ -71,21 +77,20 @@ async def generate_fix(
 async def get_fix(
     result_id: int,
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """Get generated fix for a result.
-    
+
     Args:
         result_id: ID of the AnalysisResult
         token: JWT token
         db: Database session
-        
+
     Returns:
         Fix details or 404 if not found
     """
-    fix = db.query(CodeFix).filter(CodeFix.result_id == result_id).first()
-    if not fix:
-        raise HTTPException(status_code=404, detail="Fix not found")
+    fix = authorize_fix_by_result(db, result_id, principal)
     
     return fix.to_dict()
 
@@ -94,22 +99,21 @@ async def get_fix(
 async def apply_fix(
     fix_id: int,
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """Mark fix as applied (used for tracking).
-    
+
     Args:
         fix_id: ID of the CodeFix
         token: JWT token
         db: Database session
-        
+
     Returns:
         Updated fix details
     """
-    fix = db.query(CodeFix).filter(CodeFix.id == fix_id).first()
-    if not fix:
-        raise HTTPException(status_code=404, detail="Fix not found")
-    
+    fix = authorize_fix(db, fix_id, principal)
+
     fix.status = FixStatus.APPLIED
     db.commit()
     db.refresh(fix)
@@ -122,22 +126,21 @@ async def create_pr_from_fix(
     fix_id: int,
     branch_name: Optional[str] = None,
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """Create a GitHub PR from the fix.
-    
+
     Args:
         fix_id: ID of the CodeFix
         branch_name: Optional custom branch name
         token: JWT token
         db: Database session
-        
+
     Returns:
         PR creation status
     """
-    fix = db.query(CodeFix).filter(CodeFix.id == fix_id).first()
-    if not fix:
-        raise HTTPException(status_code=404, detail="Fix not found")
+    fix = authorize_fix(db, fix_id, principal)
     
     if fix.pr_url:
         return {
@@ -161,22 +164,21 @@ async def create_pr_from_fix(
 async def get_result_with_fix(
     result_id: int,
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """Get analysis result with any associated fixes.
-    
+
     Args:
         result_id: ID of the AnalysisResult
         token: JWT token
         db: Database session
-        
+
     Returns:
         Result with fixes array
     """
-    result = db.query(AnalysisResult).filter(AnalysisResult.id == result_id).first()
-    if not result:
-        raise HTTPException(status_code=404, detail="Analysis result not found")
-    
+    result = authorize_result(db, result_id, principal)
+
     fixes = db.query(CodeFix).filter(CodeFix.result_id == result_id).all()
     
     return {
@@ -223,29 +225,31 @@ async def approve_fix(
     fix_id: int,
     request: ApprovalRequest,
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """
     Approve a proposed fix for application.
-    
+
     Phase 15.1: Governed approval with plan enforcement.
-    
+
     Workflow:
     1. Verify plan capabilities (Advanced+ only)
     2. Validate fix is in PROPOSED state
     3. Update fix status to APPROVED
     4. Record approval in ledger
     5. Return success/error
-    
+
     Args:
         fix_id: ID of fix to approve
         request: Approval request with plan context
         token: JWT token
         db: Database session
-        
+
     Returns:
         Approval result with fix data or error
     """
+    authorize_fix(db, fix_id, principal)
     # Create plan context
     try:
         plan_tier = PlanTier(request.plan_tier)
@@ -282,22 +286,24 @@ async def reject_fix(
     fix_id: int,
     request: RejectionRequest,
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """
     Reject a proposed fix.
-    
+
     Phase 15.1: Governed rejection with plan enforcement.
-    
+
     Args:
         fix_id: ID of fix to reject
         request: Rejection request with reason
         token: JWT token
         db: Database session
-        
+
     Returns:
         Rejection result with fix data or error
     """
+    authorize_fix(db, fix_id, principal)
     # Create plan context
     try:
         plan_tier = PlanTier(request.plan_tier)
@@ -332,13 +338,14 @@ async def apply_fix_governed(
     fix_id: int,
     request: ApplicationRequest,
     token: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ) -> dict:
     """
     Apply an approved fix to codebase (governed workflow).
-    
+
     Phase 15.1: Governed application with validation, rollback, and ledger recording.
-    
+
     Workflow:
     1. Verify plan capabilities (Advanced+ only)
     2. Validate fix is in APPROVED state
@@ -346,16 +353,17 @@ async def apply_fix_governed(
     4. Generate and apply patch
     5. Record outcome in ledger
     6. Update fix status
-    
+
     Args:
         fix_id: ID of fix to apply
         request: Application request with plan context
         token: JWT token
         db: Database session
-        
+
     Returns:
         Application result with patch or error
     """
+    authorize_fix(db, fix_id, principal)
     # Create plan context
     try:
         plan_tier = PlanTier(request.plan_tier)

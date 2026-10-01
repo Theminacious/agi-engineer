@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.github_service import GitHubService
 from app.services.pr_analysis import PRAnalysisPipeline
+from app.authz import Principal, get_principal, authorize_pr_analysis, pr_analysis_query
 from app.services.change_risk_view import (
     change_risk_view,
     pr_analysis_summary,
@@ -44,60 +45,63 @@ async def handle_github_webhook(
     - push
     
     Idempotent: Uses delivery_id to prevent duplicate processing.
+
+    Authenticity is fail-closed: the HMAC signature is verified before any
+    database write or background work. A missing, malformed, or invalid
+    signature is rejected with 401 and never enqueues analysis.
     """
-    # Get headers
     event_type = request.headers.get("X-GitHub-Event")
     delivery_id = request.headers.get("X-GitHub-Delivery")
     signature = request.headers.get("X-Hub-Signature-256")
-    
+
+    # Read the raw body once; it is required to verify the signature.
+    raw_body = await request.body()
+
+    # Fail-closed authenticity gate. This runs before the idempotency lookup,
+    # any DB write, and any enqueue, so a forged or unsigned payload cannot
+    # create analysis work. verify_webhook_signature returns False when the
+    # secret is unconfigured, the header is absent, malformed, or does not
+    # match — all of which reject here.
+    github_service = GitHubService(db)
+    if not github_service.verify_webhook_signature(raw_body, signature):
+        logger.warning("Rejected GitHub webhook: signature verification failed")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
     if not delivery_id:
         raise HTTPException(status_code=400, detail="Missing X-GitHub-Delivery header")
-    
+
     # Check for duplicate delivery (idempotent)
     existing = db.query(GitHubWebhookEvent).filter(
         GitHubWebhookEvent.delivery_id == delivery_id
     ).first()
-    
+
     if existing:
         logger.info(f"Webhook {delivery_id} already processed, skipping")
         return {"status": "already_processed", "delivery_id": delivery_id}
-    
-    # Read raw body
-    raw_body = await request.body()
-    
-    # Parse JSON payload
+
+    # Parse JSON payload (body already authenticated above)
     try:
         payload = json.loads(raw_body)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
-    
-    # Verify signature
-    github_service = GitHubService(db)
-    signature_valid = github_service.verify_webhook_signature(raw_body, signature)
-    
-    if not signature_valid:
-        logger.warning(f"Invalid webhook signature for delivery {delivery_id}")
-        # Continue processing but log warning (some test webhooks may not have signature)
-    
+
     # Route based on event type
     if event_type == "pull_request":
         return await _handle_pull_request_event(
             delivery_id=delivery_id,
-            signature_valid=signature_valid,
             payload=payload,
             db=db,
             background_tasks=background_tasks
         )
-    
+
     elif event_type == "push":
         return await _handle_push_event(
             delivery_id=delivery_id,
-            signature_valid=signature_valid,
             payload=payload,
             db=db,
             background_tasks=background_tasks
         )
-    
+
     else:
         logger.info(f"Ignoring unsupported event type: {event_type}")
         return {"status": "ignored", "event_type": event_type}
@@ -105,7 +109,6 @@ async def handle_github_webhook(
 
 async def _handle_pull_request_event(
     delivery_id: str,
-    signature_valid: bool,
     payload: Dict[str, Any],
     db: Session,
     background_tasks: BackgroundTasks
@@ -169,7 +172,7 @@ async def _handle_pull_request_event(
     webhook_event = GitHubWebhookEvent(
         delivery_id=delivery_id,
         event_type=event_type,
-        signature_verified=signature_valid,
+        signature_verified=True,
         installation_id=installation.id,
         repository_full_name=repo_full_name,
         repository_id=repo_id,
@@ -226,7 +229,6 @@ async def _handle_pull_request_event(
 
 async def _handle_push_event(
     delivery_id: str,
-    signature_valid: bool,
     payload: Dict[str, Any],
     db: Session,
     background_tasks: BackgroundTasks
@@ -258,7 +260,7 @@ async def _handle_push_event(
     webhook_event = GitHubWebhookEvent(
         delivery_id=delivery_id,
         event_type=WebhookEventType.PUSH,
-        signature_verified=signature_valid,
+        signature_verified=True,
         installation_id=installation.id,
         repository_full_name=repo_full_name,
         repository_id=repo_id,
@@ -317,12 +319,17 @@ async def _run_pr_analysis(pr_analysis_id: int):
 @router.get("/webhook-events")
 async def list_webhook_events(
     limit: int = 50,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
-    """List recent webhook events (for debugging/monitoring)."""
-    events = db.query(GitHubWebhookEvent).order_by(
-        GitHubWebhookEvent.created_at.desc()
-    ).limit(limit).all()
+    """List recent webhook events for the caller's installation."""
+    events = (
+        db.query(GitHubWebhookEvent)
+        .filter(GitHubWebhookEvent.installation_id == principal.installation_id)
+        .order_by(GitHubWebhookEvent.created_at.desc())
+        .limit(limit)
+        .all()
+    )
     
     return {
         "events": [
@@ -344,12 +351,13 @@ async def list_webhook_events(
 async def list_pr_analyses(
     repository: Optional[str] = None,
     limit: int = 25,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
-    """List recent PR analyses, newest first."""
+    """List recent PR analyses for the caller's installation, newest first."""
     limit = max(1, min(limit, 100))
 
-    query = db.query(PRAnalysis)
+    query = pr_analysis_query(db, principal)
     if repository:
         query = query.filter(PRAnalysis.repository_full_name == repository)
 
@@ -359,7 +367,13 @@ async def list_pr_analyses(
         "analyses": [pr_analysis_summary(a) for a in analyses],
         "count": len(analyses),
         "repositories": sorted(
-            {r[0] for r in db.query(PRAnalysis.repository_full_name).distinct().all()}
+            {
+                r[0]
+                for r in pr_analysis_query(db, principal)
+                .with_entities(PRAnalysis.repository_full_name)
+                .distinct()
+                .all()
+            }
         ),
     }
 
@@ -367,16 +381,11 @@ async def list_pr_analyses(
 @router.get("/pr-analyses/{pr_analysis_id}")
 async def get_pr_analysis(
     pr_analysis_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
-    """Get PR analysis details."""
-    pr_analysis = db.query(PRAnalysis).filter(
-        PRAnalysis.id == pr_analysis_id
-    ).first()
-    
-    if not pr_analysis:
-        raise HTTPException(status_code=404, detail="PR analysis not found")
-    
+    """Get PR analysis details, scoped to the caller's installation."""
+    pr_analysis = authorize_pr_analysis(db, pr_analysis_id, principal)
     return {
         "id": pr_analysis.id,
         "repository": pr_analysis.repository_full_name,

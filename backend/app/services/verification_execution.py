@@ -30,6 +30,26 @@ from app.services.verification_engine import (
 
 MAX_OUTPUT = 4000
 DEFAULT_TIMEOUT_SECONDS = 120
+
+_ENV_ALLOWLIST = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TZ",
+        "TERM",
+        "PYTHONPATH",
+        "PYTHONDONTWRITEBYTECODE",
+        "SYSTEMROOT",
+        "COMSPEC",
+        "PATHEXT",
+    }
+)
 _PYTEST_SUMMARY = re.compile(
     r"(?P<count>\d+)\s+(?P<kind>passed|failed|error|errors|skipped|xfailed|xpassed)"
 )
@@ -1058,20 +1078,31 @@ def _command_env(
 ) -> Dict[str, str]:
     """Subprocess-local environment for verification commands.
 
-    Base is the inherited environment plus the determinism seed; nothing in
-    os.environ is mutated. When ``include_src`` is set and the repository
-    uses a conventional src layout (an existing ``<root>/src`` directory),
-    that exact directory — resolved and absolute — is prepended to
-    PYTHONPATH so pytest imports the cloned revision rather than any
-    package installed in the host environment. Existing PYTHONPATH entries
-    are preserved, never replaced, and no other directory is ever added.
+    Customer repository code (pytest, conftest.py, Ruff) runs in this
+    environment, so it is built from an explicit allowlist of non-sensitive
+    variables (``_ENV_ALLOWLIST``) rather than the inherited process
+    environment. AGI Engineer's own secrets — GitHub App private key, OAuth
+    tokens, JWT/webhook secrets, database and Redis URLs, AI API keys — live
+    in os.environ but are never in the allowlist, so they are not visible to
+    executed repository code. Nothing in os.environ is mutated.
+
+    When ``include_src`` is set and the repository uses a conventional src
+    layout (an existing ``<root>/src`` directory), that exact directory —
+    resolved and absolute — is prepended to PYTHONPATH so pytest imports the
+    cloned revision rather than any package installed in the host
+    environment. Any allowlisted PYTHONPATH is preserved, never replaced.
 
     ``extra_path`` is appended (never prepended) to PYTHONPATH so AGI
     Engineer's own read-only pytest plugin is importable without shadowing
     any repository or src module. ``extra_env`` sets additional variables
     (e.g. the node-event sink path) local to this invocation only.
     """
-    env = {**os.environ, "PYTHONHASHSEED": "0"}
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name in _ENV_ALLOWLIST
+    }
+    env["PYTHONHASHSEED"] = "0"
     if include_src:
         src = root / "src"
         if src.is_dir():

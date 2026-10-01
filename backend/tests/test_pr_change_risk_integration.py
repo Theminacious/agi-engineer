@@ -182,6 +182,16 @@ def installation(db_session):
     db_session.commit()
     return record
 
+
+@pytest.fixture
+def auth_headers(installation):
+    from app.security import JWTManager
+
+    token = JWTManager.create_token(
+        {"user": installation.github_user, "installation_id": installation.id}
+    )
+    return {"Authorization": f"Bearer {token}"}
+
 _PR_NUMBER = 31
 
 
@@ -1040,7 +1050,7 @@ class TestWebhookBackgroundTask:
         assert pr.change_risk_hash
 
     def test_get_pr_analysis_endpoint_exposes_the_risk_report(
-        self, client, db_session, installation, revisions, pipeline
+        self, client, db_session, installation, revisions, pipeline, auth_headers
     ):
         pr = _make_pr_analysis(
             db_session, installation, revisions.chain_head, revisions.base
@@ -1049,7 +1059,7 @@ class TestWebhookBackgroundTask:
         with _pinned([_proposal("user_repo.py", GET_USER_LINES, Severity.HIGH)]):
             assert _run(pipeline, pr.id) is True
 
-        response = client.get(f"/api/github/pr-analyses/{pr.id}")
+        response = client.get(f"/api/github/pr-analyses/{pr.id}", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert body["change_risk_level"] == "high"
@@ -1115,7 +1125,7 @@ class TestWebhookBackgroundTask:
         assert isinstance(risk["verification"]["command_results"], (list, type(None)))
 
     def test_endpoint_reports_why_the_assessment_is_unavailable(
-        self, client, db_session, installation, revisions, pipeline
+        self, client, db_session, installation, revisions, pipeline, auth_headers
     ):
         pr = _make_pr_analysis(
             db_session, installation, revisions.chain_head, "0" * 40
@@ -1124,7 +1134,7 @@ class TestWebhookBackgroundTask:
         with _pinned([]):
             assert _run(pipeline, pr.id) is True
 
-        body = client.get(f"/api/github/pr-analyses/{pr.id}").json()
+        body = client.get(f"/api/github/pr-analyses/{pr.id}", headers=auth_headers).json()
         risk = body["change_risk"]
         assert risk["available"] is False
         assert risk["unavailable_reason"]
@@ -1139,7 +1149,7 @@ class TestWebhookBackgroundTask:
         assert risk["governance"] is None
 
     def test_list_endpoint_returns_change_risk_summaries(
-        self, client, db_session, installation, revisions, pipeline
+        self, client, db_session, installation, revisions, pipeline, auth_headers
     ):
         low = _make_pr_analysis(
             db_session, installation, revisions.unrelated_head, revisions.base
@@ -1157,7 +1167,7 @@ class TestWebhookBackgroundTask:
         with _pinned([_proposal("user_repo.py", GET_USER_LINES, Severity.CRITICAL)]):
             assert _run(pipeline, high.id) is True
 
-        body = client.get("/api/github/pr-analyses").json()
+        body = client.get("/api/github/pr-analyses", headers=auth_headers).json()
         assert body["count"] == 2
         assert body["repositories"] == ["owner/repo"]
 
@@ -1171,7 +1181,7 @@ class TestWebhookBackgroundTask:
         assert "change_risk_report" not in by_id[high.id]
 
     def test_list_endpoint_filters_by_repository(
-        self, client, db_session, installation, revisions, pipeline
+        self, client, db_session, installation, revisions, pipeline, auth_headers
     ):
         pr = _make_pr_analysis(
             db_session, installation, revisions.chain_head, revisions.base
@@ -1181,10 +1191,10 @@ class TestWebhookBackgroundTask:
             assert _run(pipeline, pr.id) is True
 
         assert client.get(
-            "/api/github/pr-analyses?repository=owner/repo"
+            "/api/github/pr-analyses?repository=owner/repo", headers=auth_headers
         ).json()["count"] == 1
         assert client.get(
-            "/api/github/pr-analyses?repository=other/repo"
+            "/api/github/pr-analyses?repository=other/repo", headers=auth_headers
         ).json()["count"] == 0
 
 

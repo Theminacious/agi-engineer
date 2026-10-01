@@ -1,9 +1,13 @@
 """FastAPI application factory and main entry point."""
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
+from app.config import SettingsValidationError, settings
 from app.routers import health, oauth, webhooks, installations, analysis, websockets, fixes, analytics, teams, repositories, github_webhooks, insights
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="AGI Engineer V2",
@@ -26,6 +30,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    if settings.is_production:
+        missing = settings.missing_required_secrets()
+        if missing:
+            raise SettingsValidationError(
+                "Refusing to start in environment "
+                f"'{settings.api_env}': required secrets missing or empty: "
+                + ", ".join(sorted(missing))
+            )
+    logger.info("Starting AGI Engineer V2 with config: %s", settings.safe_dict())
     from app.db.base import Base
     from app.db import engine
     Base.metadata.create_all(bind=engine)

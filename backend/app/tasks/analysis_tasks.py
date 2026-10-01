@@ -185,10 +185,14 @@ def clone_repository(full_name: str, branch: str, token: str) -> Path:
     repo_name = full_name.replace("/", "_")
     repo_path = repos_dir / repo_name
     
+    from app.security import git_credential_config_args
+
+    auth_args = git_credential_config_args(token)
+
     if repo_path.exists():
         # Pull latest changes
         subprocess.run(
-            ["git", "fetch", "origin", branch],
+            ["git", *auth_args, "fetch", "origin", branch],
             cwd=repo_path,
             check=True,
             capture_output=True
@@ -200,16 +204,16 @@ def clone_repository(full_name: str, branch: str, token: str) -> Path:
             capture_output=True
         )
         subprocess.run(
-            ["git", "pull", "origin", branch],
+            ["git", *auth_args, "pull", "origin", branch],
             cwd=repo_path,
             check=True,
             capture_output=True
         )
     else:
         # Clone repository
-        clone_url = f"https://x-access-token:{token}@github.com/{full_name}.git"
+        clone_url = f"https://github.com/{full_name}.git"
         subprocess.run(
-            ["git", "clone", "-b", branch, clone_url, str(repo_path)],
+            ["git", *auth_args, "clone", "-b", branch, clone_url, str(repo_path)],
             check=True,
             capture_output=True
         )
